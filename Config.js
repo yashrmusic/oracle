@@ -287,7 +287,7 @@ const SecureConfig = {
  * Pass your Groq key as parameter to set up everything in one go
  * Usage: FORCE_RESET_API_KEYS("gsk_xxxxx...")
  */
-function FORCE_RESET_API_KEYS(groqKey) {
+function FORCE_RESET_API_KEYS(groqKey, githubPat) {
   Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
   Logger.log('║         FORCE RESET API KEYS                                     ║');
   Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
@@ -301,8 +301,8 @@ function FORCE_RESET_API_KEYS(groqKey) {
   // Store new keys
   props.setProperties({
     'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
-    'GROQ_API_KEY': groqKey || '',  // Pass as parameter
-    // Twilio is optional - leave empty for now
+    'GROQ_API_KEY': groqKey || '',
+    'GITHUB_PAT': githubPat || '',
     'TWILIO_ACCOUNT_SID': '',
     'TWILIO_AUTH_TOKEN': '',
     'TWILIO_WHATSAPP_NUMBER': 'whatsapp:+14155238886',
@@ -313,12 +313,15 @@ function FORCE_RESET_API_KEYS(groqKey) {
   if (groqKey) {
     Logger.log('✅ Groq API key stored!');
   } else {
-    Logger.log('⚠️ Groq not configured. Run: SETUP_GROQ("gsk_xxx...")');
+    Logger.log('⚠️ Groq not configured');
+  }
+  if (githubPat) {
+    Logger.log('✅ GitHub PAT stored!');
+  } else {
+    Logger.log('⚠️ GitHub PAT not configured');
   }
   Logger.log('');
-  Logger.log('📱 WhatsApp/Twilio: NOT CONFIGURED (optional)');
-  Logger.log('');
-  Logger.log('🧪 Now run: testSystemHealth()');
+  Logger.log('🧪 Now run: testAI()');
 }
 
 /**

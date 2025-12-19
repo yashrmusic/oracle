@@ -1,13 +1,13 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════╗
  * ║                      URBANMISTRII ORACLE v22.1 - AI                           ║
- * ║                      Gemini + Groq + OpenRouter (Triple Fallback)             ║
+ * ║                      Gemini + GitHub Models + Groq + OpenRouter               ║
  * ╚═══════════════════════════════════════════════════════════════════════════════╝
  */
 
 const AI = {
   /**
-   * Main LLM Call Router - Triple fallback: Gemini → Groq → OpenRouter
+   * Main LLM Call Router - Quad fallback: Gemini → GitHub Models → Groq → OpenRouter
    */
   call(prompt, systemInstruction = "You are a helpful HR assistant.") {
     if (SecureConfig.isTestMode()) {
@@ -19,20 +19,27 @@ const AI = {
     try {
       return this._callGemini(prompt, systemInstruction);
     } catch (e) {
-      Log.warn("AI", "Gemini failed, trying Groq", { error: e.message });
+      Log.warn("AI", "Gemini failed, trying GitHub Models", { error: e.message });
 
-      // Try Groq second (fast & free)
+      // Try GitHub Models second (free GPT-4o-mini)
       try {
-        return this._callGroq(prompt, systemInstruction);
+        return this._callGitHubModels(prompt, systemInstruction);
       } catch (e2) {
-        Log.warn("AI", "Groq failed, trying OpenRouter", { error: e2.message });
+        Log.warn("AI", "GitHub Models failed, trying Groq", { error: e2.message });
 
-        // Try OpenRouter last
+        // Try Groq third (fast & free)
         try {
-          return this._callOpenRouter(prompt, systemInstruction);
+          return this._callGroq(prompt, systemInstruction);
         } catch (e3) {
-          Log.error("AI", "Critical: All AI models failed", { error: e3.message });
-          throw e3;
+          Log.warn("AI", "Groq failed, trying OpenRouter", { error: e3.message });
+
+          // Try OpenRouter last
+          try {
+            return this._callOpenRouter(prompt, systemInstruction);
+          } catch (e4) {
+            Log.error("AI", "Critical: All AI models failed", { error: e4.message });
+            throw e4;
+          }
         }
       }
     }
@@ -78,6 +85,53 @@ const AI = {
       throw new Error(`Invalid candidate structure from Gemini. Raw: ${rawContent.substring(0, 500)}`);
     }
 
+    return text;
+  },
+
+  /**
+   * GitHub Models API - Free GPT-4o-mini via GitHub PAT
+   */
+  _callGitHubModels(prompt, system) {
+    const key = SecureConfig.getOptional('GITHUB_PAT');
+    if (!key) throw new Error('GitHub PAT not configured');
+
+    const url = "https://models.github.ai/inference/chat/completions";
+
+    const payload = {
+      model: "openai/gpt-4o-mini",  // Free, fast, high quality
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt }
+      ],
+      max_tokens: CONFIG.AI.MAX_TOKENS
+    };
+
+    const options = {
+      method: "post",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const rawContent = response.getContentText();
+    let json;
+
+    try {
+      json = JSON.parse(rawContent);
+    } catch (e) {
+      throw new Error(`Failed to parse GitHub Models response: ${rawContent.substring(0, 500)}`);
+    }
+
+    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+
+    const text = this._safePath(json, ['choices', 0, 'message', 'content']);
+    if (!text) {
+      throw new Error(`Invalid response structure from GitHub Models. Raw: ${rawContent.substring(0, 500)}`);
+    }
     return text;
   },
 
@@ -432,6 +486,7 @@ function testAI() {
   Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
 
   let geminiOk = false;
+  let githubOk = false;
   let groqOk = false;
   let openrouterOk = false;
 
@@ -447,6 +502,20 @@ function testAI() {
     }
   } catch (e) {
     Logger.log('   ❌ GEMINI: ' + e.message.substring(0, 100));
+  }
+
+  // Test GitHub Models
+  Logger.log('');
+  Logger.log('🟣 Testing GITHUB MODELS (gpt-4o-mini)...');
+  try {
+    const response = AI._callGitHubModels('Say "working" in one word', 'Respond briefly.');
+    if (response) {
+      Logger.log('   ✅ GITHUB: Working');
+      Logger.log('   Response: ' + response.substring(0, 50));
+      githubOk = true;
+    }
+  } catch (e) {
+    Logger.log('   ❌ GITHUB: ' + e.message.substring(0, 100));
   }
 
   // Test Groq
@@ -482,11 +551,12 @@ function testAI() {
   Logger.log('═══════════════════════════════════════════════════════════════════');
   Logger.log('SUMMARY:');
   Logger.log(`   GEMINI:      ${geminiOk ? '✅ Working' : '❌ Not working'}`);
+  Logger.log(`   GITHUB:      ${githubOk ? '✅ Working' : '❌ Not working'}`);
   Logger.log(`   GROQ:        ${groqOk ? '✅ Working' : '❌ Not working'}`);
   Logger.log(`   OPENROUTER:  ${openrouterOk ? '✅ Working' : '❌ Not working'}`);
   Logger.log('');
 
-  if (geminiOk || groqOk || openrouterOk) {
+  if (geminiOk || githubOk || groqOk || openrouterOk) {
     Logger.log('🎉 AI System: OPERATIONAL');
     Logger.log('   At least one model is working!');
     return true;
