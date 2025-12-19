@@ -424,24 +424,75 @@ const AI = {
 };
 
 /**
- * Test AI integration
+ * Test AI integration - Tests each model individually
  */
 function testAI() {
-  Logger.log('Testing AI integration...');
+  Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
+  Logger.log('║         AI MODEL DIAGNOSTICS                                      ║');
+  Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
 
+  let geminiOk = false;
+  let groqOk = false;
+  let openrouterOk = false;
+
+  // Test Gemini
+  Logger.log('');
+  Logger.log('🔷 Testing GEMINI (gemini-2.5-flash)...');
   try {
-    const response = AI.call('Say "working" in one word');
-    Logger.log('AI Response: ' + response);
-
-    if (response && response.toLowerCase().includes('work')) {
-      Logger.log('✅ AI test passed');
-      return true;
-    } else {
-      Logger.log('⚠️ AI responded but unexpected: ' + response);
-      return false;
+    const response = AI._callGemini('Say "working" in one word', 'Respond briefly.');
+    if (response) {
+      Logger.log('   ✅ GEMINI: Working');
+      Logger.log('   Response: ' + response.substring(0, 50));
+      geminiOk = true;
     }
   } catch (e) {
-    Logger.log('❌ AI test failed: ' + e.message);
+    Logger.log('   ❌ GEMINI: ' + e.message.substring(0, 100));
+  }
+
+  // Test Groq
+  Logger.log('');
+  Logger.log('🟢 Testing GROQ (llama-3.3-70b)...');
+  try {
+    const response = AI._callGroq('Say "working" in one word', 'Respond briefly.');
+    if (response) {
+      Logger.log('   ✅ GROQ: Working');
+      Logger.log('   Response: ' + response.substring(0, 50));
+      groqOk = true;
+    }
+  } catch (e) {
+    Logger.log('   ❌ GROQ: ' + e.message.substring(0, 100));
+  }
+
+  // Test OpenRouter
+  Logger.log('');
+  Logger.log('🟠 Testing OPENROUTER...');
+  try {
+    const response = AI._callOpenRouter('Say "working" in one word', 'Respond briefly.');
+    if (response) {
+      Logger.log('   ✅ OPENROUTER: Working');
+      Logger.log('   Response: ' + response.substring(0, 50));
+      openrouterOk = true;
+    }
+  } catch (e) {
+    Logger.log('   ❌ OPENROUTER: ' + e.message.substring(0, 100));
+  }
+
+  // Summary
+  Logger.log('');
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+  Logger.log('SUMMARY:');
+  Logger.log(`   GEMINI:      ${geminiOk ? '✅ Working' : '❌ Not working'}`);
+  Logger.log(`   GROQ:        ${groqOk ? '✅ Working' : '❌ Not working'}`);
+  Logger.log(`   OPENROUTER:  ${openrouterOk ? '✅ Working' : '❌ Not working'}`);
+  Logger.log('');
+
+  if (geminiOk || groqOk || openrouterOk) {
+    Logger.log('🎉 AI System: OPERATIONAL');
+    Logger.log('   At least one model is working!');
+    return true;
+  } else {
+    Logger.log('🚨 AI System: DOWN');
+    Logger.log('   No models are working. Check API keys!');
     return false;
   }
 }
