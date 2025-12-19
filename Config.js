@@ -284,9 +284,10 @@ const SecureConfig = {
 
 /**
  * FORCE RESET - Run this to fix API key issues
- * Deletes all old keys and stores new ones
+ * Pass your Groq key as parameter to set up everything in one go
+ * Usage: FORCE_RESET_API_KEYS("gsk_xxxxx...")
  */
-function FORCE_RESET_API_KEYS() {
+function FORCE_RESET_API_KEYS(groqKey) {
   Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
   Logger.log('║         FORCE RESET API KEYS                                     ║');
   Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
@@ -300,7 +301,7 @@ function FORCE_RESET_API_KEYS() {
   // Store new keys
   props.setProperties({
     'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
-    'GROQ_API_KEY': '',  // Set via SETUP_GROQ() function
+    'GROQ_API_KEY': groqKey || '',  // Pass as parameter
     // Twilio is optional - leave empty for now
     'TWILIO_ACCOUNT_SID': '',
     'TWILIO_AUTH_TOKEN': '',
@@ -309,9 +310,13 @@ function FORCE_RESET_API_KEYS() {
   });
 
   Logger.log('✅ Gemini API key stored!');
+  if (groqKey) {
+    Logger.log('✅ Groq API key stored!');
+  } else {
+    Logger.log('⚠️ Groq not configured. Run: SETUP_GROQ("gsk_xxx...")');
+  }
   Logger.log('');
   Logger.log('📱 WhatsApp/Twilio: NOT CONFIGURED (optional)');
-  Logger.log('   To enable WhatsApp, run: SETUP_TWILIO("your_sid", "your_token")');
   Logger.log('');
   Logger.log('🧪 Now run: testSystemHealth()');
 }
