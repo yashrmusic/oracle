@@ -19,7 +19,12 @@ const AI = {
       return this._callGemini(prompt, systemInstruction);
     } catch (e) {
       Log.warn("AI", "Gemini failed, falling back to OpenRouter", {error: e.message});
-      return this._callOpenRouter(prompt, systemInstruction);
+      try {
+        return this._callOpenRouter(prompt, systemInstruction);
+      } catch (e2) {
+        Log.error("AI", "Critical: All AI models failed", {error: e2.message});
+        throw e2;
+      }
     }
   },
 
@@ -45,14 +50,24 @@ const AI = {
     };
 
     const response = UrlFetchApp.fetch(url, options);
-    const json = JSON.parse(response.getContentText());
+    const rawContent = response.getContentText();
+    let json;
     
-    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-    if (!json.candidates || !json.candidates[0] || !json.candidates[0].content || !json.candidates[0].content.parts || !json.candidates[0].content.parts[0]) {
-      throw new Error("Invalid response structure from Gemini: " + JSON.stringify(json));
+    try {
+      json = JSON.parse(rawContent);
+    } catch (e) {
+      throw new Error(`Failed to parse Gemini response: ${rawContent.substring(0, 500)}`);
     }
     
-    return json.candidates[0].content.parts[0].text;
+    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+    
+    // Hyper-robust path navigation
+    const text = this._safePath(json, ['candidates', 0, 'content', 'parts', 0, 'text']);
+    if (!text) {
+      throw new Error(`Invalid candidate structure from Gemini. Raw: ${rawContent.substring(0, 500)}`);
+    }
+    
+    return text;
   },
 
   _callOpenRouter(prompt, system) {
@@ -67,7 +82,7 @@ const AI = {
       ]
     };
 
-    const response = UrlFetchApp.fetch(url, {
+    const options = {
       method: "post",
       headers: {
         "Authorization": `Bearer ${key}`,
@@ -75,14 +90,25 @@ const AI = {
       },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
-    });
+    };
     
-    const json = JSON.parse(response.getContentText());
-    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-    if (!json.choices || !json.choices[0] || !json.choices[0].message) {
-      throw new Error("Invalid response structure from OpenRouter: " + JSON.stringify(json));
+    const response = UrlFetchApp.fetch(url, options);
+    const rawContent = response.getContentText();
+    let json;
+    
+    try {
+      json = JSON.parse(rawContent);
+    } catch (e) {
+      throw new Error(`Failed to parse OpenRouter response: ${rawContent.substring(0, 500)}`);
     }
-    return json.choices[0].message.content;
+
+    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+    
+    const text = this._safePath(json, ['choices', 0, 'message', 'content']);
+    if (!text) {
+      throw new Error(`Invalid response structure from OpenRouter. Raw: ${rawContent.substring(0, 500)}`);
+    }
+    return text;
   },
 
   /**
@@ -113,8 +139,9 @@ const AI = {
     }
     `;
 
+    let result = null;
     try {
-      const result = this.call(prompt, "You are an JSON extraction bot.");
+      result = this.call(prompt, "You are an JSON extraction bot.");
       if (!result || typeof result !== 'string' || result === "AI_TEST_RESPONSE") return null;
       // Clean markdown code blocks if present
       const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -325,6 +352,13 @@ const AI = {
     } catch (e) {
       return { isSpam: false, confidence: 0, error: e.message };
     }
+  },
+
+  /**
+   * Safe path navigation for nested objects
+   */
+  _safePath(obj, path) {
+    return path.reduce((xs, x) => (xs && xs[x] !== undefined && xs[x] !== null) ? xs[x] : null, obj);
   }
 };
 

@@ -216,6 +216,10 @@ function syncToPublicView() {
     
     const master = ConfigHelpers.getSheet(CONFIG.SHEETS.TABS.CANDIDATES);
     const masterData = master.getDataRange().getValues();
+    if (masterData.length === 0) {
+      Log.warn('SYNC', 'Master sheet is empty');
+      return;
+    }
     
     const safeColumns = [];
     masterData[0].forEach((header, index) => {
@@ -228,9 +232,11 @@ function syncToPublicView() {
     let publicSheet = publicSs.getSheetByName('Team View');
     if (!publicSheet) publicSheet = publicSs.insertSheet('Team View');
     
-    publicSheet.clearContents();
-    publicSheet.getRange(1, 1, safeData.length, safeData[0].length).setValues(safeData);
-    publicSheet.getRange(1, 1, 1, safeData[0].length).setFontWeight('bold').setBackground('#4285f4').setFontColor('#ffffff');
+    if (safeData.length > 0) {
+      publicSheet.clearContents();
+      publicSheet.getRange(1, 1, safeData.length, safeData[0].length).setValues(safeData);
+      publicSheet.getRange(1, 1, 1, safeData[0].length).setFontWeight('bold').setBackground('#4285f4').setFontColor('#ffffff');
+    }
     
     Log.success('SYNC', 'Public view synced', { rows: safeData.length });
   } catch (e) {

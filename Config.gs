@@ -269,8 +269,8 @@ const ConfigHelpers = {
    */
   getDepartment(role) {
     const r = (role || '').toLowerCase();
-    if (r.includes('dev') || r.includes('engineer') || r.includes('programmer') || r.includes('tech')) return 'DEVELOPMENT';
-    if (r.includes('marketing') || r.includes('content') || r.includes('social') || r.includes('sales')) return 'MARKETING';
+    if (r.includes('dev') || r.includes('engineer') || r.includes('programmer') || r.includes('tech') || r.includes('software')) return 'DEVELOPMENT';
+    if (r.includes('marketing') || r.includes('content') || r.includes('social') || r.includes('sales') || r.includes('copy')) return 'MARKETING';
     return 'DESIGN';
   },
 
