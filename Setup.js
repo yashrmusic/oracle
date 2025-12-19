@@ -77,7 +77,8 @@ function initializeSheets() {
     { name: CONFIG.SHEETS.TABS.CANDIDATES, headers: null },
     { name: CONFIG.SHEETS.TABS.LOGS, headers: ['Timestamp', 'Level', 'Category', 'Message', 'Data'] },
     { name: CONFIG.SHEETS.TABS.TIMELINE, headers: ['Timestamp', 'Email', 'Event', 'Data'] },
-    { name: CONFIG.SHEETS.TABS.ANALYTICS, headers: ['Date', 'Metric', 'Value'] }
+    { name: CONFIG.SHEETS.TABS.ANALYTICS, headers: ['Date', 'Metric', 'Value', 'Metadata'] },
+    { name: CONFIG.SHEETS.TABS.FOLLOWUP, headers: ['Date', 'Name', 'Phone', 'Type', 'Status'] }
   ];
 
   tabs.forEach(tab => {
@@ -85,7 +86,10 @@ function initializeSheets() {
     if (!sheet) {
       sheet = master.insertSheet(tab.name);
       Logger.log(`   📄 Created sheet: ${tab.name}`);
-      if (tab.headers) sheet.appendRow(tab.headers);
+      if (tab.headers) {
+        sheet.appendRow(tab.headers);
+        sheet.getRange(1, 1, 1, tab.headers.length).setFontWeight('bold').setBackground('#E0E0E0');
+      }
     }
   });
 }
@@ -293,6 +297,11 @@ function sendDailySummary() {
 
     stats.conversionRate = stats.total > 0 ? ((stats.hired / stats.total) * 100).toFixed(1) : 0;
     stats.avgResponseTime = '2.5 hours';
+
+    // v22.1: Record detailed snapshot to DB_Analytics
+    if (typeof Analytics !== 'undefined' && Analytics.recordDailySnapshot) {
+      Analytics.recordDailySnapshot(stats);
+    }
 
     Notify.dailySummary(stats);
     Log.success('ANALYTICS', 'Daily summary sent');

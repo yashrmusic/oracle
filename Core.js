@@ -13,14 +13,14 @@ function universalAutomationEngine(e) {
     const sheet = e.source.getActiveSheet();
     const range = e.range;
     const row = range.getRow();
-    
+
     if (sheet.getName() !== CONFIG.SHEETS.TABS.CANDIDATES) return;
     if (range.getColumn() !== CONFIG.COLUMNS.STATUS) return;
     if (row < 2) return;
-    
+
     const status = range.getValue();
     const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
-    
+
     const candidate = {
       row: row,
       status: status,
@@ -30,11 +30,11 @@ function universalAutomationEngine(e) {
       role: rowData[CONFIG.COLUMNS.ROLE - 1] || 'intern',
       department: rowData[CONFIG.COLUMNS.DEPARTMENT - 1]
     };
-    
+
     Log.info('AUTOMATION', `Status changed to: ${status}`, { row: row, name: candidate.name });
     SheetUtils.updateCell(row, CONFIG.COLUMNS.UPDATED, new Date());
     handleStatusChange(candidate, sheet);
-    
+
   } catch (e) {
     Log.critical('AUTOMATION', 'Automation engine crashed', { error: e.message });
   }
@@ -56,7 +56,7 @@ function handleStatusChange(candidate, sheet) {
 function handleNewCandidate(candidate, sheet) {
   Log.info('HANDLER', 'New candidate received', { name: candidate.name });
   CandidateTimeline.add(candidate.email, 'APPLICATION_RECEIVED', { role: candidate.role });
-  Notify.email(CONFIG.TEAM.ADMIN_EMAIL, '📥 New Candidate Application', 
+  Notify.email(CONFIG.TEAM.ADMIN_EMAIL, '📥 New Candidate Application',
     `New application from ${candidate.name} for ${candidate.role} role.\n\nReview at: ${getSheetUrl()}`);
   SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, '📥 Application logged');
 }
@@ -92,16 +92,16 @@ function handleTestSubmitted(candidate, sheet) {
   Log.info('HANDLER', 'Processing test submission', { name: candidate.name });
   const testSentTime = sheet.getRange(candidate.row, CONFIG.COLUMNS.TEST_SENT).getValue();
   const submittedTime = new Date();
-  
+
   if (testSentTime) {
     const hoursTaken = DateTime.hoursBetween(testSentTime, submittedTime);
     const timeLimit = ConfigHelpers.getTimeLimit(candidate.role, candidate.department);
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.TEST_SUBMITTED, submittedTime);
     const withinLimit = hoursTaken <= timeLimit;
-    SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, 
+    SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG,
       `${withinLimit ? '✅' : '⚠️'} Submitted in ${hoursTaken.toFixed(1)}h (limit: ${timeLimit}h)`);
     CandidateTimeline.add(candidate.email, 'TEST_SUBMITTED', { hoursTaken: hoursTaken.toFixed(1), onTime: withinLimit });
-    
+
     // v22.0: Auto portfolio scoring
     if (CONFIG.FEATURES.AUTO_PORTFOLIO_SCORING) {
       const portfolioUrl = sheet.getRange(candidate.row, CONFIG.COLUMNS.PORTFOLIO_URL).getValue();
@@ -111,15 +111,15 @@ function handleTestSubmitted(candidate, sheet) {
         if (score && !score.error) {
           SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.PORTFOLIO_SCORE, score.score);
           SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.PORTFOLIO_FEEDBACK, score.summary);
-          CandidateTimeline.add(candidate.email, 'PORTFOLIO_SCORED', { 
-            score: score.score, 
-            recommendation: score.recommendation 
+          CandidateTimeline.add(candidate.email, 'PORTFOLIO_SCORED', {
+            score: score.score,
+            recommendation: score.recommendation
           });
         }
       }
     }
-    
-    Notify.team(`📝 Test Submitted: ${candidate.name}`, 
+
+    Notify.team(`📝 Test Submitted: ${candidate.name}`,
       `${candidate.name} submitted their ${candidate.role} test in ${hoursTaken.toFixed(1)} hours.`);
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.STATUS, CONFIG.RULES.STATUSES.UNDER_REVIEW);
   }
@@ -127,9 +127,9 @@ function handleTestSubmitted(candidate, sheet) {
 
 function handleInterviewPending(candidate, sheet) {
   Log.info('HANDLER', 'Scheduling interview', { name: candidate.name });
-  
+
   const interviewDate = sheet.getRange(candidate.row, CONFIG.COLUMNS.INTERVIEW_DATE).getValue();
-  
+
   // v22.0: Create calendar event if date is set
   if (CONFIG.FEATURES.CALENDAR_INTEGRATION && interviewDate) {
     const calResult = Calendar.createInterview(candidate, new Date(interviewDate));
@@ -138,20 +138,20 @@ function handleInterviewPending(candidate, sheet) {
       CandidateTimeline.add(candidate.email, 'CALENDAR_EVENT_CREATED', { eventId: calResult.eventId });
     }
   }
-  
+
   // Send WhatsApp notification
   if (!candidate.phone) {
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, '⚠️ No phone');
     return;
   }
-  
+
   const dateStr = interviewDate ? DateTime.formatIST(new Date(interviewDate), 'full') : 'TBD - Check your email for booking link';
   const result = WhatsApp.sendInterviewSchedule(candidate.phone, candidate.name, candidate.role, dateStr);
-  
+
   if (result.success) {
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, '✅ Schedule sent');
     CandidateTimeline.add(candidate.email, 'INTERVIEW_SCHEDULED', { date: dateStr });
-    
+
     // v22.0: Send portal link for self-booking if no date set
     if (!interviewDate && CONFIG.FEATURES.PORTAL_ENABLED) {
       sendPortalLink(candidate.email);
@@ -193,20 +193,20 @@ function handleHired(candidate, sheet) {
 function runOracleBackgroundCycle() {
   try {
     Log.info('CYCLE', 'Starting background cycle v22.0');
-    
+
     // Core processing
     processInbox();
     processRejectionQueue();
     processFollowUps();
-    
+
     // v22.0: New processors
     if (typeof RetryQueue !== 'undefined') {
       RetryQueue.process();
     }
-    
+
     // Sync public view
     syncToPublicView();
-    
+
     Log.success('CYCLE', 'Background cycle complete');
   } catch (e) {
     Log.critical('CYCLE', 'Background cycle failed', { error: e.message });
@@ -232,7 +232,17 @@ function processFollowUps() {
     if (!testSent) continue;
     const daysSince = DateTime.daysBetween(testSent, now);
     if (CONFIG.RULES.FOLLOWUP_DAYS.includes(daysSince) && c.data[CONFIG.COLUMNS.PHONE - 1]) {
-      WhatsApp.sendReminder(c.data[CONFIG.COLUMNS.PHONE - 1], c.data[CONFIG.COLUMNS.NAME - 1], 'Reminder about test');
+      const phone = c.data[CONFIG.COLUMNS.PHONE - 1];
+      const name = c.data[CONFIG.COLUMNS.NAME - 1];
+      WhatsApp.sendReminder(phone, name, 'Reminder about test');
+
+      // v22.1: Log to DB_FollowUp
+      try {
+        const followSheet = ConfigHelpers.getSheet(CONFIG.SHEETS.TABS.FOLLOWUP);
+        followSheet.appendRow([new Date(), name, phone, 'WHATSAPP_REMINDER', 'SENT']);
+      } catch (e) {
+        Log.warn('FOLLOWUP', 'Failed to log follow-up', { error: e.message });
+      }
     }
   }
 }
