@@ -477,6 +477,7 @@ function processInboxBulk(limit) {
 
 /**
  * Find and process candidates stuck in intermediate states
+ * Automatically processes NEW candidates from sheet submissions
  */
 function processStuckCandidates() {
   try {
@@ -486,15 +487,58 @@ function processStuckCandidates() {
     let newCount = 0;
     let testSentCount = 0;
     let submittedCount = 0;
+    let processed = 0;
+    let errors = 0;
+
+    Logger.log('   Scanning sheet for unprocessed entries...');
 
     for (let i = 1; i < data.length; i++) {
+      const row = i + 1;
       const status = data[i][CONFIG.COLUMNS.STATUS - 1];
-      const updated = new Date(data[i][CONFIG.COLUMNS.UPDATED - 1]);
-      const hoursSinceUpdate = (new Date() - updated) / (1000 * 60 * 60);
+      const log = data[i][CONFIG.COLUMNS.LOG - 1] || '';
+      const phone = data[i][CONFIG.COLUMNS.PHONE - 1];
+      const name = data[i][CONFIG.COLUMNS.NAME - 1] || 'Candidate';
+      const email = data[i][CONFIG.COLUMNS.EMAIL - 1];
 
-      // Count candidates in each state
+      // Count and process NEW candidates (from sheet/form submissions)
       if (status === CONFIG.RULES.STATUSES.NEW) {
         newCount++;
+
+        // Check if welcome was never sent (log doesn't contain welcome confirmation)
+        if (!log.includes('Welcome') && !log.includes('welcome') && phone) {
+          Logger.log(`   → Row ${row}: Processing NEW candidate "${name}"...`);
+
+          try {
+            // Send welcome message
+            const result = WhatsApp.sendWelcome(phone, name);
+
+            if (result.success || result.testMode) {
+              // Update status to IN PROCESS
+              SheetUtils.updateCell(row, CONFIG.COLUMNS.STATUS, CONFIG.RULES.STATUSES.IN_PROCESS);
+              SheetUtils.updateCell(row, CONFIG.COLUMNS.UPDATED, new Date());
+              SheetUtils.updateCell(row, CONFIG.COLUMNS.LOG, '✅ Welcome sent (catch-up)');
+
+              // Log to timeline
+              if (email) {
+                CandidateTimeline.add(email, 'WELCOME_SENT_CATCHUP', { source: 'sheet_entry' });
+              }
+
+              processed++;
+              Logger.log(`     ✅ Welcome sent, moved to IN PROCESS`);
+            } else {
+              SheetUtils.updateCell(row, CONFIG.COLUMNS.LOG, `⚠️ Welcome failed: ${result.error}`);
+              errors++;
+              Logger.log(`     ❌ Failed: ${result.error}`);
+            }
+
+            // Rate limit
+            Utilities.sleep(CONFIG.RATE_LIMITS.WHATSAPP_DELAY_MS || 2000);
+
+          } catch (e) {
+            errors++;
+            Logger.log(`     ❌ Error: ${e.message}`);
+          }
+        }
       } else if (status === CONFIG.RULES.STATUSES.TEST_SENT) {
         testSentCount++;
       } else if (status === CONFIG.RULES.STATUSES.TEST_SUBMITTED) {
@@ -502,19 +546,93 @@ function processStuckCandidates() {
       }
     }
 
-    Logger.log(`   📊 Current Pipeline Status:`);
-    Logger.log(`      NEW (awaiting review): ${newCount}`);
+    Logger.log('');
+    Logger.log(`   📊 Pipeline Status:`);
+    Logger.log(`      NEW (remaining): ${newCount - processed}`);
     Logger.log(`      TEST SENT (awaiting submission): ${testSentCount}`);
     Logger.log(`      TEST SUBMITTED (awaiting review): ${submittedCount}`);
-
-    if (newCount > 0) {
-      Logger.log(`   💡 Tip: Review ${newCount} NEW candidates and move them to "IN PROCESS" to send welcome messages`);
-    }
-
-    Logger.log('   ✅ Stuck candidates analysis complete');
+    Logger.log('');
+    Logger.log(`   ✅ Processed ${processed} new candidates, ${errors} errors`);
 
   } catch (e) {
     Logger.log('   ❌ Failed to process stuck candidates: ' + e.message);
+  }
+}
+
+/**
+ * Process all NEW candidates and send them welcome messages
+ * Use this to bulk-process form submissions
+ */
+function processAllNewCandidates() {
+  Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
+  Logger.log('║         PROCESSING ALL NEW CANDIDATES                            ║');
+  Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
+
+  processStuckCandidates();
+
+  Logger.log('');
+  Logger.log('Done! All NEW candidates have been sent welcome messages.');
+}
+
+/**
+ * Process candidates who should have status "TEST SENT" and send them test links
+ * Use when you've moved candidates to TEST SENT but the automation didn't trigger
+ */
+function processTestSentCandidates() {
+  Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
+  Logger.log('║         SENDING TEST LINKS TO TEST_SENT CANDIDATES               ║');
+  Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
+
+  try {
+    const sheet = ConfigHelpers.getSheet(CONFIG.SHEETS.TABS.CANDIDATES);
+    const data = sheet.getDataRange().getValues();
+
+    let processed = 0;
+    let errors = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = i + 1;
+      const status = data[i][CONFIG.COLUMNS.STATUS - 1];
+      const testSentTime = data[i][CONFIG.COLUMNS.TEST_SENT - 1];
+      const log = data[i][CONFIG.COLUMNS.LOG - 1] || '';
+      const phone = data[i][CONFIG.COLUMNS.PHONE - 1];
+      const name = data[i][CONFIG.COLUMNS.NAME - 1] || 'Candidate';
+      const role = data[i][CONFIG.COLUMNS.ROLE - 1] || 'intern';
+      const department = data[i][CONFIG.COLUMNS.DEPARTMENT - 1];
+
+      // Find TEST SENT candidates who haven't actually received the test link
+      if (status === CONFIG.RULES.STATUSES.TEST_SENT && !testSentTime && phone) {
+        Logger.log(`   → Row ${row}: Sending test to "${name}" (${role})...`);
+
+        try {
+          const result = WhatsApp.sendTestLink(phone, name, role, department);
+
+          if (result.success || result.testMode) {
+            SheetUtils.updateCell(row, CONFIG.COLUMNS.TEST_SENT, new Date());
+            SheetUtils.updateCell(row, CONFIG.COLUMNS.UPDATED, new Date());
+            SheetUtils.updateCell(row, CONFIG.COLUMNS.LOG, '✅ Test link sent (catch-up)');
+            processed++;
+            Logger.log(`     ✅ Test link sent`);
+          } else {
+            errors++;
+            SheetUtils.updateCell(row, CONFIG.COLUMNS.LOG, `⚠️ Test send failed: ${result.error}`);
+            Logger.log(`     ❌ Failed: ${result.error}`);
+          }
+
+          Utilities.sleep(CONFIG.RATE_LIMITS.WHATSAPP_DELAY_MS || 2000);
+
+        } catch (e) {
+          errors++;
+          Logger.log(`     ❌ Error: ${e.message}`);
+        }
+      }
+    }
+
+    Logger.log('');
+    Logger.log(`   ✅ Sent ${processed} test links, ${errors} errors`);
+
+  } catch (e) {
+    Logger.log('❌ Failed: ' + e.message);
   }
 }
 
