@@ -36,9 +36,9 @@ const CONFIG = {
 
   // ═══════════════════ COLUMN MAPPINGS (1-Based) ═══════════════════
   COLUMNS: {
-    STATUS: 1,
+    TIMESTAMP: 1,
     UPDATED: 2,
-    TIMESTAMP: 3,
+    STATUS: 3,
     NAME: 4,
     EMAIL: 5,
     PHONE: 6,
