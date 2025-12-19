@@ -265,23 +265,41 @@ const SecureConfig = {
 
 const ConfigHelpers = {
   /**
-   * Get role-specific time limit in hours
+   * Get department for a specific role
    */
-  getTimeLimit(role) {
-    const roleKey = role.toLowerCase().includes('senior') ? 'senior' 
-                  : role.toLowerCase().includes('junior') ? 'junior' 
-                  : 'intern';
-    return CONFIG.RULES.TIME_LIMITS[roleKey];
+  getDepartment(role) {
+    const r = (role || '').toLowerCase();
+    if (r.includes('dev') || r.includes('engineer') || r.includes('programmer') || r.includes('tech')) return 'DEVELOPMENT';
+    if (r.includes('marketing') || r.includes('content') || r.includes('social') || r.includes('sales')) return 'MARKETING';
+    return 'DESIGN';
   },
 
   /**
-   * Get test link for specific role
+   * Get role-specific time limit in hours (department aware)
    */
-  getTestLink(role) {
+  getTimeLimit(role, department) {
+    const dept = department || this.getDepartment(role);
+    const deptConfig = CONFIG.DEPARTMENTS[dept] || CONFIG.DEPARTMENTS.DESIGN;
+    
+    const roleKey = role.toLowerCase().includes('senior') ? 'senior' 
+                  : role.toLowerCase().includes('junior') ? 'junior' 
+                  : 'intern';
+    
+    return deptConfig.timeLimits[roleKey] || CONFIG.RULES.TIME_LIMITS[roleKey];
+  },
+
+  /**
+   * Get test link for specific role (department aware)
+   */
+  getTestLink(role, department) {
+    const dept = department || this.getDepartment(role);
+    const deptConfig = CONFIG.DEPARTMENTS[dept] || CONFIG.DEPARTMENTS.DESIGN;
+    
     const roleKey = role.toLowerCase().includes('senior') ? 'senior'
                   : role.toLowerCase().includes('junior') ? 'junior'
                   : 'intern';
-    return CONFIG.TEST_LINKS[roleKey];
+                  
+    return deptConfig.testLinks[roleKey] || CONFIG.TEST_LINKS[roleKey];
   },
 
   /**
@@ -334,7 +352,7 @@ const ConfigHelpers = {
  */
 function setupSecureConfig() {
   Logger.log('═══════════════════════════════════════');
-  Logger.log('   ORACLE v21.0 - SECURE SETUP');
+  Logger.log('   ORACLE v22.0 - SECURE SETUP');
   Logger.log('═══════════════════════════════════════');
   
   try {

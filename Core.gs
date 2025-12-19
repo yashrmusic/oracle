@@ -27,7 +27,8 @@ function universalAutomationEngine(e) {
       name: rowData[CONFIG.COLUMNS.NAME - 1] || 'Candidate',
       email: rowData[CONFIG.COLUMNS.EMAIL - 1],
       phone: rowData[CONFIG.COLUMNS.PHONE - 1],
-      role: rowData[CONFIG.COLUMNS.ROLE - 1] || 'intern'
+      role: rowData[CONFIG.COLUMNS.ROLE - 1] || 'intern',
+      department: rowData[CONFIG.COLUMNS.DEPARTMENT - 1]
     };
     
     Log.info('AUTOMATION', `Status changed to: ${status}`, { row: row, name: candidate.name });
@@ -77,7 +78,7 @@ function handleTestSent(candidate, sheet) {
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, '⚠️ No phone');
     return;
   }
-  const result = WhatsApp.sendTestLink(candidate.phone, candidate.name, candidate.role);
+  const result = WhatsApp.sendTestLink(candidate.phone, candidate.name, candidate.role, candidate.department);
   if (result.success) {
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.TEST_SENT, new Date());
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, '✅ Test sent');
@@ -94,7 +95,7 @@ function handleTestSubmitted(candidate, sheet) {
   
   if (testSentTime) {
     const hoursTaken = DateTime.hoursBetween(testSentTime, submittedTime);
-    const timeLimit = ConfigHelpers.getTimeLimit(candidate.role);
+    const timeLimit = ConfigHelpers.getTimeLimit(candidate.role, candidate.department);
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.TEST_SUBMITTED, submittedTime);
     const withinLimit = hoursTaken <= timeLimit;
     SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, 

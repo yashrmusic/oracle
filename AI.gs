@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║                      URBANMISTRII ORACLE v21.0 - AI                           ║
+ * ║                      URBANMISTRII ORACLE v22.0 - AI                           ║
  * ║                      Gemini Pro + Llama 3 Configuration                       ║
  * ╚═══════════════════════════════════════════════════════════════════════════════╝
  */
@@ -47,7 +47,10 @@ const AI = {
     const response = UrlFetchApp.fetch(url, options);
     const json = JSON.parse(response.getContentText());
     
-    if (json.error) throw new Error(json.error.message);
+    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+    if (!json.candidates || !json.candidates[0] || !json.candidates[0].content || !json.candidates[0].content.parts || !json.candidates[0].content.parts[0]) {
+      throw new Error("Invalid response structure from Gemini: " + JSON.stringify(json));
+    }
     
     return json.candidates[0].content.parts[0].text;
   },
@@ -75,6 +78,10 @@ const AI = {
     });
     
     const json = JSON.parse(response.getContentText());
+    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+    if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+      throw new Error("Invalid response structure from OpenRouter: " + JSON.stringify(json));
+    }
     return json.choices[0].message.content;
   },
 
@@ -108,11 +115,12 @@ const AI = {
 
     try {
       const result = this.call(prompt, "You are an JSON extraction bot.");
+      if (!result || typeof result !== 'string' || result === "AI_TEST_RESPONSE") return null;
       // Clean markdown code blocks if present
       const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanJson);
     } catch (e) {
-      Log.error("AI", "Intent analysis failed", {error: e.message});
+      Log.error("AI", "Intent analysis failed", {error: e.message, result: result});
       return null;
     }
   },

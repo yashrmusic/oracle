@@ -110,13 +110,8 @@ function handleEmailApplication(email, analysis, message) {
   }
   
   // v22.0: Detect department from role
-  let department = 'DESIGN'; // Default
-  const role = (candidateInfo.role || analysis.role || '').toLowerCase();
-  if (role.includes('dev') || role.includes('engineer') || role.includes('programmer')) {
-    department = 'DEVELOPMENT';
-  } else if (role.includes('marketing') || role.includes('content') || role.includes('social')) {
-    department = 'MARKETING';
-  }
+  const role = candidateInfo.role || analysis.role || '';
+  const department = ConfigHelpers.getDepartment(role);
   
   const sheet = ConfigHelpers.getSheet(CONFIG.SHEETS.TABS.CANDIDATES);
   sheet.appendRow([

@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║                    URBANMISTRII ORACLE v21.0 - WHATSAPP                       ║
+ * ║                    URBANMISTRII ORACLE v22.0 - WHATSAPP                       ║
  * ║                    AiSensy API Integration                                    ║
  * ╚═══════════════════════════════════════════════════════════════════════════════╝
  */
@@ -74,10 +74,10 @@ const WhatsApp = {
   /**
    * Send test link to candidate
    */
-  sendTestLink(phone, name, role) {
+  sendTestLink(phone, name, role, department) {
     const template = CONFIG.WHATSAPP.TEMPLATES.TEST_LINK;
-    const link = ConfigHelpers.getTestLink(role);
-    const timeLimit = ConfigHelpers.getTimeLimit(role);
+    const link = ConfigHelpers.getTestLink(role, department);
+    const timeLimit = ConfigHelpers.getTimeLimit(role, department);
     // Params: Name, Role, TimeLimit, Link
     return this._send(phone, template, [name, role, String(timeLimit), link]);
   },
