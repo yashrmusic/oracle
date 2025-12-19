@@ -1,40 +1,52 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════╗
  * ║                      URBANMISTRII ORACLE v22.1 - AI                           ║
- * ║                      Gemini Pro + Llama 3 Configuration                       ║
+ * ║                      Gemini + Groq + OpenRouter (Triple Fallback)             ║
  * ╚═══════════════════════════════════════════════════════════════════════════════╝
  */
 
 const AI = {
   /**
-   * Main LLM Call Router
+   * Main LLM Call Router - Triple fallback: Gemini → Groq → OpenRouter
    */
   call(prompt, systemInstruction = "You are a helpful HR assistant.") {
     if (SecureConfig.isTestMode()) {
-       Logger.log('[AI TEST] Prompt: ' + prompt.substring(0, 50) + '...');
-       return "AI_TEST_RESPONSE";
+      Logger.log('[AI TEST] Prompt: ' + prompt.substring(0, 50) + '...');
+      return "AI_TEST_RESPONSE";
     }
 
+    // Try Gemini first
     try {
       return this._callGemini(prompt, systemInstruction);
     } catch (e) {
-      Log.warn("AI", "Gemini failed, falling back to OpenRouter", {error: e.message});
+      Log.warn("AI", "Gemini failed, trying Groq", { error: e.message });
+
+      // Try Groq second (fast & free)
       try {
-        return this._callOpenRouter(prompt, systemInstruction);
+        return this._callGroq(prompt, systemInstruction);
       } catch (e2) {
-        Log.error("AI", "Critical: All AI models failed", {error: e2.message});
-        throw e2;
+        Log.warn("AI", "Groq failed, trying OpenRouter", { error: e2.message });
+
+        // Try OpenRouter last
+        try {
+          return this._callOpenRouter(prompt, systemInstruction);
+        } catch (e3) {
+          Log.error("AI", "Critical: All AI models failed", { error: e3.message });
+          throw e3;
+        }
       }
     }
   },
 
   _callGemini(prompt, system) {
-    const key = SecureConfig.get('GEMINI_API_KEY');
+    const key = SecureConfig.getOptional('GEMINI_API_KEY');
+    if (!key) throw new Error('Gemini API key not configured');
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.AI.MODELS.PRIMARY}:generateContent?key=${key}`;
-    
+
     const payload = {
       contents: [{
-        parts: [{text: system + "\n\n" + prompt}]
+        parts: [{ text: system + "\n\n" + prompt }]
       }],
       generationConfig: {
         temperature: CONFIG.AI.TEMPERATURE,
@@ -52,33 +64,82 @@ const AI = {
     const response = UrlFetchApp.fetch(url, options);
     const rawContent = response.getContentText();
     let json;
-    
+
     try {
       json = JSON.parse(rawContent);
     } catch (e) {
       throw new Error(`Failed to parse Gemini response: ${rawContent.substring(0, 500)}`);
     }
-    
+
     if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-    
-    // Hyper-robust path navigation
+
     const text = this._safePath(json, ['candidates', 0, 'content', 'parts', 0, 'text']);
     if (!text) {
       throw new Error(`Invalid candidate structure from Gemini. Raw: ${rawContent.substring(0, 500)}`);
     }
-    
+
+    return text;
+  },
+
+  /**
+   * Groq API - Fast & Free fallback
+   */
+  _callGroq(prompt, system) {
+    const key = SecureConfig.getOptional('GROQ_API_KEY');
+    if (!key) throw new Error('Groq API key not configured');
+
+    const url = "https://api.groq.com/openai/v1/chat/completions";
+
+    const payload = {
+      model: "llama-3.3-70b-versatile",  // Fast, free, high quality
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt }
+      ],
+      temperature: CONFIG.AI.TEMPERATURE,
+      max_tokens: CONFIG.AI.MAX_TOKENS
+    };
+
+    const options = {
+      method: "post",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const rawContent = response.getContentText();
+    let json;
+
+    try {
+      json = JSON.parse(rawContent);
+    } catch (e) {
+      throw new Error(`Failed to parse Groq response: ${rawContent.substring(0, 500)}`);
+    }
+
+    if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+
+    const text = this._safePath(json, ['choices', 0, 'message', 'content']);
+    if (!text) {
+      throw new Error(`Invalid response structure from Groq. Raw: ${rawContent.substring(0, 500)}`);
+    }
     return text;
   },
 
   _callOpenRouter(prompt, system) {
-    const key = SecureConfig.get('OPENROUTER_API_KEY');
+    const key = SecureConfig.getOptional('OPENROUTER_API_KEY');
+    if (!key) throw new Error('OpenRouter API key not configured');
+
     const url = "https://openrouter.ai/api/v1/chat/completions";
-    
+
     const payload = {
       model: CONFIG.AI.MODELS.FALLBACK,
       messages: [
-        {role: "system", content: system},
-        {role: "user", content: prompt}
+        { role: "system", content: system },
+        { role: "user", content: prompt }
       ]
     };
 
@@ -91,11 +152,11 @@ const AI = {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
-    
+
     const response = UrlFetchApp.fetch(url, options);
     const rawContent = response.getContentText();
     let json;
-    
+
     try {
       json = JSON.parse(rawContent);
     } catch (e) {
@@ -103,7 +164,7 @@ const AI = {
     }
 
     if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-    
+
     const text = this._safePath(json, ['choices', 0, 'message', 'content']);
     if (!text) {
       throw new Error(`Invalid response structure from OpenRouter. Raw: ${rawContent.substring(0, 500)}`);
@@ -147,7 +208,7 @@ const AI = {
       const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(cleanJson);
     } catch (e) {
-      Log.error("AI", "Intent analysis failed", {error: e.message, result: result});
+      Log.error("AI", "Intent analysis failed", { error: e.message, result: result });
       return null;
     }
   },
@@ -167,12 +228,12 @@ const AI = {
       "portfolioLinks": ["link1", "link2"]
     }
     `;
-    
+
     try {
-       const res = this.call(prompt, "Extract strict JSON.");
-       return JSON.parse(res.replace(/```json/g, '').replace(/```/g, '').trim());
+      const res = this.call(prompt, "Extract strict JSON.");
+      return JSON.parse(res.replace(/```json/g, '').replace(/```/g, '').trim());
     } catch (e) {
-       return null;
+      return null;
     }
   },
 
@@ -212,7 +273,7 @@ const AI = {
     if (!portfolioUrl) {
       return { score: 0, error: 'No portfolio URL provided' };
     }
-    
+
     // Try to fetch portfolio content
     let portfolioContent = '';
     try {
@@ -229,7 +290,7 @@ const AI = {
     } catch (e) {
       Log.warn('AI', 'Could not fetch portfolio', { url: portfolioUrl, error: e.message });
     }
-    
+
     const prompt = `
     Evaluate this design portfolio for a ${role} position at UrbanMistrii (an interior design company).
     
@@ -260,23 +321,23 @@ const AI = {
     - 4-5.9: Average, needs thorough review
     - 0-3.9: Below requirements
     `;
-    
+
     try {
       const result = this.call(prompt, "You are an expert design portfolio evaluator. Return only valid JSON.");
       const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
-      
-      Log.info('AI', 'Portfolio scored', { 
-        url: portfolioUrl.substring(0, 50), 
+
+      Log.info('AI', 'Portfolio scored', {
+        url: portfolioUrl.substring(0, 50),
         score: parsed.score,
-        recommendation: parsed.recommendation 
+        recommendation: parsed.recommendation
       });
-      
+
       return parsed;
     } catch (e) {
       Log.error('AI', 'Portfolio scoring failed', { error: e.message });
-      return { 
-        score: 5, 
+      return {
+        score: 5,
         error: e.message,
         recommendation: 'REVIEW',
         summary: 'Automatic scoring failed - manual review required'
@@ -305,7 +366,7 @@ const AI = {
     Return JSON array:
     ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]
     `;
-    
+
     try {
       const result = this.call(prompt, "Generate interview questions as JSON array only.");
       return JSON.parse(result.replace(/```json/g, '').replace(/```/g, '').trim());
@@ -345,7 +406,7 @@ const AI = {
       "reasons": ["reason1", "reason2"]
     }
     `;
-    
+
     try {
       const result = this.call(prompt, "Spam detection. Return JSON only.");
       return JSON.parse(result.replace(/```json/g, '').replace(/```/g, '').trim());
@@ -367,11 +428,11 @@ const AI = {
  */
 function testAI() {
   Logger.log('Testing AI integration...');
-  
+
   try {
     const response = AI.call('Say "working" in one word');
     Logger.log('AI Response: ' + response);
-    
+
     if (response && response.toLowerCase().includes('work')) {
       Logger.log('✅ AI test passed');
       return true;

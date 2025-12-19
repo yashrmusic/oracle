@@ -300,6 +300,7 @@ function FORCE_RESET_API_KEYS() {
   // Store new keys
   props.setProperties({
     'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
+    'GROQ_API_KEY': '',  // Set via SETUP_GROQ() function
     // Twilio is optional - leave empty for now
     'TWILIO_ACCOUNT_SID': '',
     'TWILIO_AUTH_TOKEN': '',
@@ -330,6 +331,22 @@ function SETUP_TWILIO(accountSid, authToken) {
 
   Logger.log('✅ Twilio credentials stored!');
   Logger.log('🧪 Test it: diagnosticsWhatsApp()');
+}
+
+/**
+ * Setup Groq API key (fallback AI)
+ */
+function SETUP_GROQ(apiKey) {
+  if (!apiKey) {
+    Logger.log('Usage: SETUP_GROQ("gsk_xxxx...")');
+    return;
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('GROQ_API_KEY', apiKey);
+
+  Logger.log('✅ Groq API key stored!');
+  Logger.log('🧪 Test it: testAI()');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
