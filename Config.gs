@@ -203,10 +203,11 @@ const SecureConfig = {
     }
 
     // Store keys (REPLACE THESE WITH YOUR ACTUAL KEYS)
+    // ⚠️ DELETE THESE AFTER RUNNING setupSecureConfig() ONCE!
     props.setProperties({
-      'GEMINI_API_KEY': 'YOUR_GEMINI_API_KEY_HERE',
-      'OPENROUTER_API_KEY': 'YOUR_OPENROUTER_API_KEY_HERE',
-      'AISENSY_JWT': 'YOUR_AISENSY_JWT_HERE',
+      'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
+      'OPENROUTER_API_KEY': 'YOUR_OPENROUTER_API_KEY_HERE',  // Get from https://openrouter.ai/keys
+      'AISENSY_JWT': 'YOUR_AISENSY_JWT_HERE',  // Or Twilio credentials when migrated
       'AISENSY_PROJECT_ID': 'YOUR_AISENSY_PROJECT_ID_HERE',
       'CONFIG_INITIALIZED': 'true'
     });
