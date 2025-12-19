@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║                 URBANMISTRII ORACLE v22.0 - EMAIL MODULE                      ║
+ * ║                 URBANMISTRII ORACLE v22.1 - EMAIL MODULE                      ║
  * ║                 Gmail Processing & Smart Responses (Enhanced)                 ║
  * ╚═══════════════════════════════════════════════════════════════════════════════╝
  */

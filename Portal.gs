@@ -1,6 +1,6 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════════╗
- * ║                 URBANMISTRII ORACLE v22.0 - CANDIDATE PORTAL                  ║
+ * ║                 URBANMISTRII ORACLE v22.1 - CANDIDATE PORTAL                  ║
  * ║                 Self-Service Web App for Candidates                           ║
  * ╚═══════════════════════════════════════════════════════════════════════════════╝
  * 

@@ -1,4 +1,4 @@
-# 🔮 Oracle v22.0 - AI-Powered Hiring Automation
+# 🔮 Oracle v22.1 - AI-Powered Hiring Automation
 
 **The Ultimate Enterprise Recruitment System for UrbanMistrii**
 
