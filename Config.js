@@ -24,7 +24,7 @@ const CONFIG = {
   SHEETS: {
     MASTER_ID: "112UbKamDcvQ-UkXshdhyDRFt0y7SX0NBgP00lvl98V4",
     PUBLIC_ID: "1_aSQEx8BJUWxpyR3RHLetuj7No-PE633jedgCAMBuzo",
-    
+
     TABS: {
       CANDIDATES: "DB_Candidates",
       FOLLOWUP: "DB_FollowUp",
@@ -64,11 +64,11 @@ const CONFIG = {
       junior: 24,     // hours
       senior: 48      // hours
     },
-    
+
     REJECTION_DELAY_HRS: 24,
     MAX_FOLLOWUPS: 2,
     FOLLOWUP_DAYS: [2, 5], // Day 2 and Day 5 after test sent
-    
+
     STATUSES: {
       NEW: "NEW",
       IN_PROCESS: "IN PROCESS",
@@ -195,7 +195,7 @@ const SecureConfig = {
    */
   setup() {
     const props = PropertiesService.getScriptProperties();
-    
+
     // Only run if not already configured
     if (props.getProperty('CONFIG_INITIALIZED')) {
       Logger.log('⚠️ Already configured. Delete keys manually in Project Settings if you need to reset.');
@@ -207,8 +207,10 @@ const SecureConfig = {
     props.setProperties({
       'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
       'OPENROUTER_API_KEY': 'YOUR_OPENROUTER_API_KEY_HERE',  // Get from https://openrouter.ai/keys
-      'AISENSY_JWT': 'YOUR_AISENSY_JWT_HERE',  // Or Twilio credentials when migrated
-      'AISENSY_PROJECT_ID': 'YOUR_AISENSY_PROJECT_ID_HERE',
+      // Twilio WhatsApp credentials (replaces AiSensy)
+      'TWILIO_ACCOUNT_SID': 'YOUR_TWILIO_ACCOUNT_SID',  // Get from https://console.twilio.com
+      'TWILIO_AUTH_TOKEN': 'YOUR_TWILIO_AUTH_TOKEN',
+      'TWILIO_WHATSAPP_NUMBER': 'whatsapp:+14155238886',  // Sandbox number, or your approved number
       'CONFIG_INITIALIZED': 'true'
     });
 
@@ -223,11 +225,11 @@ const SecureConfig = {
   get(keyName) {
     const props = PropertiesService.getScriptProperties();
     const key = props.getProperty(keyName);
-    
+
     if (!key) {
       throw new Error(`❌ Missing API key: ${keyName}. Run SecureConfig.setup() first!`);
     }
-    
+
     return key;
   },
 
@@ -237,9 +239,9 @@ const SecureConfig = {
   validate() {
     const required = [
       'GEMINI_API_KEY',
-      'OPENROUTER_API_KEY',
-      'AISENSY_JWT',
-      'AISENSY_PROJECT_ID'
+      'TWILIO_ACCOUNT_SID',
+      'TWILIO_AUTH_TOKEN',
+      'TWILIO_WHATSAPP_NUMBER'
     ];
 
     const props = PropertiesService.getScriptProperties();
@@ -281,11 +283,11 @@ const ConfigHelpers = {
   getTimeLimit(role, department) {
     const dept = department || this.getDepartment(role);
     const deptConfig = CONFIG.DEPARTMENTS[dept] || CONFIG.DEPARTMENTS.DESIGN;
-    
-    const roleKey = role.toLowerCase().includes('senior') ? 'senior' 
-                  : role.toLowerCase().includes('junior') ? 'junior' 
-                  : 'intern';
-    
+
+    const roleKey = role.toLowerCase().includes('senior') ? 'senior'
+      : role.toLowerCase().includes('junior') ? 'junior'
+        : 'intern';
+
     return deptConfig.timeLimits[roleKey] || CONFIG.RULES.TIME_LIMITS[roleKey];
   },
 
@@ -295,11 +297,11 @@ const ConfigHelpers = {
   getTestLink(role, department) {
     const dept = department || this.getDepartment(role);
     const deptConfig = CONFIG.DEPARTMENTS[dept] || CONFIG.DEPARTMENTS.DESIGN;
-    
+
     const roleKey = role.toLowerCase().includes('senior') ? 'senior'
-                  : role.toLowerCase().includes('junior') ? 'junior'
-                  : 'intern';
-                  
+      : role.toLowerCase().includes('junior') ? 'junior'
+        : 'intern';
+
     return deptConfig.testLinks[roleKey] || CONFIG.TEST_LINKS[roleKey];
   },
 
@@ -319,11 +321,11 @@ const ConfigHelpers = {
     try {
       const ss = SpreadsheetApp.openById(CONFIG.SHEETS.MASTER_ID);
       const sheet = ss.getSheetByName(tabName);
-      
+
       if (!sheet) {
         throw new Error(`Sheet "${tabName}" not found`);
       }
-      
+
       return sheet;
     } catch (e) {
       Logger.log(`❌ Error accessing sheet "${tabName}": ${e.message}`);
@@ -355,11 +357,11 @@ function setupSecureConfig() {
   Logger.log('═══════════════════════════════════════');
   Logger.log('   ORACLE v22.0 - SECURE SETUP');
   Logger.log('═══════════════════════════════════════');
-  
+
   try {
     SecureConfig.setup();
     SecureConfig.validate();
-    
+
     Logger.log('');
     Logger.log('✅ Configuration complete!');
     Logger.log('✅ All API keys are now stored securely.');
@@ -369,7 +371,7 @@ function setupSecureConfig() {
     Logger.log('2. Save this script');
     Logger.log('3. Run: testSystemHealth()');
     Logger.log('');
-    
+
   } catch (e) {
     Logger.log('❌ Setup failed: ' + e.message);
   }
@@ -382,7 +384,7 @@ function testSystemHealth() {
   Logger.log('═══════════════════════════════════════');
   Logger.log('   SYSTEM HEALTH CHECK');
   Logger.log('═══════════════════════════════════════');
-  
+
   let passed = 0;
   let failed = 0;
 
@@ -419,6 +421,6 @@ function testSystemHealth() {
   Logger.log('');
   Logger.log(`Results: ${passed} passed, ${failed} failed`);
   Logger.log('═══════════════════════════════════════');
-  
+
   return failed === 0;
 }
