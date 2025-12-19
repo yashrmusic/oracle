@@ -505,6 +505,28 @@ function testSystemHealth() {
     failed++;
   }
 
+  // Test 4: Gemini AI
+  Logger.log('');
+  Logger.log('--- AI Models ---');
+  try {
+    AI._callGemini('test', 'test');
+    Logger.log('✅ Gemini: Working');
+    passed++;
+  } catch (e) {
+    Logger.log('❌ Gemini: ' + e.message.substring(0, 60));
+    failed++;
+  }
+
+  // Test 5: Groq AI
+  try {
+    AI._callGroq('test', 'test');
+    Logger.log('✅ Groq: Working');
+    passed++;
+  } catch (e) {
+    Logger.log('❌ Groq: ' + e.message.substring(0, 60));
+    failed++;
+  }
+
   Logger.log('');
   Logger.log(`Results: ${passed} passed, ${failed} failed`);
   Logger.log('═══════════════════════════════════════');
