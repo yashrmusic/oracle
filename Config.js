@@ -227,31 +227,51 @@ const SecureConfig = {
     const key = props.getProperty(keyName);
 
     if (!key) {
-      throw new Error(`❌ Missing API key: ${keyName}. Run SecureConfig.setup() first!`);
+      throw new Error(`❌ Missing API key: ${keyName}. Run FORCE_RESET_API_KEYS() first!`);
     }
 
     return key;
   },
 
   /**
-   * Validate all required keys exist
+   * Get API key safely, returns null if not found (no error)
+   */
+  getOptional(keyName) {
+    const props = PropertiesService.getScriptProperties();
+    return props.getProperty(keyName) || null;
+  },
+
+  /**
+   * Validate required keys (only Gemini is required, Twilio is optional)
    */
   validate() {
-    const required = [
-      'GEMINI_API_KEY',
-      'TWILIO_ACCOUNT_SID',
-      'TWILIO_AUTH_TOKEN',
-      'TWILIO_WHATSAPP_NUMBER'
-    ];
+    const required = ['GEMINI_API_KEY'];  // Only AI is required
+    const optional = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER'];
 
     const props = PropertiesService.getScriptProperties();
     const missing = required.filter(key => !props.getProperty(key));
 
     if (missing.length > 0) {
-      throw new Error(`❌ Missing API keys: ${missing.join(', ')}. Run SecureConfig.setup() first!`);
+      throw new Error(`❌ Missing API keys: ${missing.join(', ')}. Run FORCE_RESET_API_KEYS() first!`);
+    }
+
+    // Check optional keys and warn
+    const missingOptional = optional.filter(key => !props.getProperty(key));
+    if (missingOptional.length > 0) {
+      Logger.log(`⚠️ Optional keys not configured (WhatsApp disabled): ${missingOptional.join(', ')}`);
     }
 
     return true;
+  },
+
+  /**
+   * Check if WhatsApp/Twilio is configured
+   */
+  isWhatsAppConfigured() {
+    const props = PropertiesService.getScriptProperties();
+    return props.getProperty('TWILIO_ACCOUNT_SID') &&
+      props.getProperty('TWILIO_AUTH_TOKEN') &&
+      props.getProperty('TWILIO_WHATSAPP_NUMBER');
   },
 
   /**
@@ -261,6 +281,56 @@ const SecureConfig = {
     return CONFIG.FEATURES.TEST_MODE;
   }
 };
+
+/**
+ * FORCE RESET - Run this to fix API key issues
+ * Deletes all old keys and stores new ones
+ */
+function FORCE_RESET_API_KEYS() {
+  Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
+  Logger.log('║         FORCE RESET API KEYS                                     ║');
+  Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
+
+  const props = PropertiesService.getScriptProperties();
+
+  // Delete all existing properties
+  props.deleteAllProperties();
+  Logger.log('🗑️ Deleted old properties');
+
+  // Store new keys
+  props.setProperties({
+    'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
+    // Twilio is optional - leave empty for now
+    'TWILIO_ACCOUNT_SID': '',
+    'TWILIO_AUTH_TOKEN': '',
+    'TWILIO_WHATSAPP_NUMBER': 'whatsapp:+14155238886',
+    'CONFIG_INITIALIZED': 'true'
+  });
+
+  Logger.log('✅ Gemini API key stored!');
+  Logger.log('');
+  Logger.log('📱 WhatsApp/Twilio: NOT CONFIGURED (optional)');
+  Logger.log('   To enable WhatsApp, run: SETUP_TWILIO("your_sid", "your_token")');
+  Logger.log('');
+  Logger.log('🧪 Now run: testSystemHealth()');
+}
+
+/**
+ * Setup Twilio credentials separately
+ */
+function SETUP_TWILIO(accountSid, authToken) {
+  if (!accountSid || !authToken) {
+    Logger.log('Usage: SETUP_TWILIO("ACxxxx...", "your_auth_token")');
+    return;
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('TWILIO_ACCOUNT_SID', accountSid);
+  props.setProperty('TWILIO_AUTH_TOKEN', authToken);
+
+  Logger.log('✅ Twilio credentials stored!');
+  Logger.log('🧪 Test it: diagnosticsWhatsApp()');
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //                              HELPER FUNCTIONS

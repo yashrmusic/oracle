@@ -13,39 +13,47 @@
  */
 
 const WhatsApp = {
-  
+
   /**
    * Internal: Send WhatsApp message via Twilio
    */
   _send(destination, messageBody) {
+    // Test mode - just log
     if (SecureConfig.isTestMode()) {
       Logger.log(`[WHATSAPP TEST] To: ${destination}, Message: ${messageBody.substring(0, 100)}...`);
       return { success: true, testMode: true };
     }
 
+    // Check if Twilio is configured
+    if (!SecureConfig.isWhatsAppConfigured()) {
+      Logger.log(`[WHATSAPP SKIP] Twilio not configured. Message to ${destination} not sent.`);
+      Log.info('WHATSAPP', 'Skipped - Twilio not configured', { destination: destination });
+      return { success: false, skipped: true, error: 'Twilio not configured' };
+    }
+
     try {
-      const accountSid = SecureConfig.get('TWILIO_ACCOUNT_SID');
-      const authToken = SecureConfig.get('TWILIO_AUTH_TOKEN');
-      const fromNumber = SecureConfig.get('TWILIO_WHATSAPP_NUMBER'); // e.g., 'whatsapp:+14155238886'
-      
+      const accountSid = SecureConfig.getOptional('TWILIO_ACCOUNT_SID');
+      const authToken = SecureConfig.getOptional('TWILIO_AUTH_TOKEN');
+      const fromNumber = SecureConfig.getOptional('TWILIO_WHATSAPP_NUMBER');
+
       // Format phone number
       let phone = String(destination).replace(/\D/g, '');
       if (phone.length === 10) {
         phone = '91' + phone; // Add India country code
       }
       const toNumber = `whatsapp:+${phone}`;
-      
+
       const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-      
+
       // Twilio uses HTTP Basic Auth
       const authHeader = Utilities.base64Encode(`${accountSid}:${authToken}`);
-      
+
       const payload = {
         'From': fromNumber,
         'To': toNumber,
         'Body': messageBody
       };
-      
+
       const response = UrlFetchApp.fetch(url, {
         method: 'post',
         headers: {
@@ -55,15 +63,15 @@ const WhatsApp = {
         payload: payload,
         muteHttpExceptions: true
       });
-      
+
       const code = response.getResponseCode();
       const resText = response.getContentText();
-      
+
       Log.info('WHATSAPP', `Sent message to ${Sanitize.maskEmail(phone)}`, {
         code: code,
         response: resText.substring(0, 200)
       });
-      
+
       if (code >= 200 && code < 300) {
         const json = JSON.parse(resText);
         return { success: true, sid: json.sid, response: resText };
@@ -90,23 +98,23 @@ const WhatsApp = {
       const accountSid = SecureConfig.get('TWILIO_ACCOUNT_SID');
       const authToken = SecureConfig.get('TWILIO_AUTH_TOKEN');
       const fromNumber = SecureConfig.get('TWILIO_WHATSAPP_NUMBER');
-      
+
       let phone = String(destination).replace(/\D/g, '');
       if (phone.length === 10) {
         phone = '91' + phone;
       }
       const toNumber = `whatsapp:+${phone}`;
-      
+
       const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
       const authHeader = Utilities.base64Encode(`${accountSid}:${authToken}`);
-      
+
       const payload = {
         'From': fromNumber,
         'To': toNumber,
         'ContentSid': contentSid,
         'ContentVariables': JSON.stringify(contentVariables)
       };
-      
+
       const response = UrlFetchApp.fetch(url, {
         method: 'post',
         headers: {
@@ -116,10 +124,10 @@ const WhatsApp = {
         payload: payload,
         muteHttpExceptions: true
       });
-      
+
       const code = response.getResponseCode();
       const resText = response.getContentText();
-      
+
       if (code >= 200 && code < 300) {
         return { success: true, response: resText };
       } else {
@@ -143,7 +151,7 @@ Your application has been received and is being reviewed. We'll get back to you 
 
 Best regards,
 Team UrbanMistrii 🎨`;
-    
+
     return this._send(phone, message);
   },
 
@@ -153,7 +161,7 @@ Team UrbanMistrii 🎨`;
   sendTestLink(phone, name, role, department) {
     const link = ConfigHelpers.getTestLink(role, department);
     const timeLimit = ConfigHelpers.getTimeLimit(role, department);
-    
+
     const message = `Hi ${name}! 🎉
 
 Great news! You've been selected to take our ${role} assessment.
@@ -169,7 +177,7 @@ Great news! You've been selected to take our ${role} assessment.
 
 Good luck! 🍀
 Team UrbanMistrii`;
-    
+
     return this._send(phone, message);
   },
 
@@ -190,7 +198,7 @@ Please confirm your availability by replying to this message.
 
 See you soon! 🙌
 Team UrbanMistrii`;
-    
+
     return this._send(phone, message);
   },
 
@@ -206,7 +214,7 @@ If you have any questions, feel free to reach out!
 
 Best,
 Team UrbanMistrii`;
-    
+
     return this._send(phone, message);
   },
 
@@ -226,7 +234,7 @@ Wishing you all the best in your career!
 
 Warm regards,
 Team UrbanMistrii`;
-    
+
     return this._send(phone, message);
   }
 };
@@ -236,10 +244,10 @@ Team UrbanMistrii`;
  */
 function testWhatsApp() {
   Logger.log('Testing Twilio WhatsApp integration...');
-  
+
   // Send test to Yash
   const result = WhatsApp.sendWelcome(CONFIG.TEAM.YASH_PHONE, 'Test User');
-  
+
   if (result.success) {
     Logger.log('✅ WhatsApp test passed');
     Logger.log('Response: ' + JSON.stringify(result));
@@ -248,7 +256,7 @@ function testWhatsApp() {
   } else {
     Logger.log('❌ WhatsApp test failed: ' + result.error);
   }
-  
+
   return result;
 }
 
@@ -268,7 +276,7 @@ function diagnosticsWhatsApp() {
   Logger.log('╔═══════════════════════════════════════╗');
   Logger.log('║   TWILIO WHATSAPP DIAGNOSTICS         ║');
   Logger.log('╚═══════════════════════════════════════╝');
-  
+
   // Check Account SID
   try {
     const sid = SecureConfig.get('TWILIO_ACCOUNT_SID');
@@ -276,7 +284,7 @@ function diagnosticsWhatsApp() {
   } catch (e) {
     Logger.log('❌ Account SID: Missing - Get from https://console.twilio.com');
   }
-  
+
   // Check Auth Token
   try {
     const token = SecureConfig.get('TWILIO_AUTH_TOKEN');
@@ -284,7 +292,7 @@ function diagnosticsWhatsApp() {
   } catch (e) {
     Logger.log('❌ Auth Token: Missing');
   }
-  
+
   // Check WhatsApp Number
   try {
     const num = SecureConfig.get('TWILIO_WHATSAPP_NUMBER');
@@ -294,7 +302,7 @@ function diagnosticsWhatsApp() {
     Logger.log('   For sandbox: whatsapp:+14155238886');
     Logger.log('   For production: whatsapp:+YOUR_TWILIO_NUMBER');
   }
-  
+
   Logger.log('');
   Logger.log('📚 Twilio WhatsApp Quickstart:');
   Logger.log('   https://www.twilio.com/docs/whatsapp/quickstart');
