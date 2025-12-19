@@ -94,7 +94,7 @@ const Portal = {
       const data = sheet.getDataRange().getValues();
       
       for (let i = 1; i < data.length; i++) {
-        if (data[i][17] === token) { // Column R (18) = index 17
+        if (data[i][CONFIG.COLUMNS.PORTAL_TOKEN - 1] === token) { // Use constant
           return {
             row: i + 1,
             name: data[i][CONFIG.COLUMNS.NAME - 1],
@@ -105,7 +105,7 @@ const Portal = {
             testSent: data[i][CONFIG.COLUMNS.TEST_SENT - 1],
             testSubmitted: data[i][CONFIG.COLUMNS.TEST_SUBMITTED - 1],
             interviewDate: data[i][CONFIG.COLUMNS.INTERVIEW_DATE - 1],
-            portfolioScore: data[i][14] // Column O
+            portfolioScore: data[i][CONFIG.COLUMNS.PORTFOLIO_SCORE - 1]
           };
         }
       }
@@ -135,8 +135,8 @@ const Portal = {
     // Trigger AI scoring
     const score = AI.scorePortfolio(fileUrl, candidate.role);
     if (score && score.score) {
-      SheetUtils.updateCell(candidate.row, 14, score.score); // Column O = AI_SCORE
-      SheetUtils.updateCell(candidate.row, 15, score.summary); // Column P = PORTFOLIO_FEEDBACK
+      SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.AI_SCORE, score.score);
+      SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.PORTFOLIO_FEEDBACK, score.summary);
     }
     
     CandidateTimeline.add(candidate.email, 'TEST_SUBMITTED_VIA_PORTAL', { fileUrl, notes });
@@ -161,7 +161,7 @@ const Portal = {
     if (calResult.success) {
       // Update interview date in sheet
       SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.INTERVIEW_DATE, dateTime);
-      SheetUtils.updateCell(candidate.row, 16, calResult.eventId); // Column Q = CALENDAR_EVENT_ID
+      SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.CALENDAR_EVENT_ID, calResult.eventId);
       SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.LOG, `📅 Interview booked via portal: ${DateTime.formatIST(dateTime, 'full')}`);
       
       CandidateTimeline.add(candidate.email, 'INTERVIEW_BOOKED_VIA_PORTAL', { date: dateTime.toISOString() });
