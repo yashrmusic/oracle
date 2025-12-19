@@ -117,7 +117,7 @@ const CONFIG = {
   // ═══════════════════ AI SETTINGS ═══════════════════
   AI: {
     MODELS: {
-      PRIMARY: "gemini-1.5-flash",  // Stable, better rate limits than 2.0
+      PRIMARY: "gemini-2.5-flash",  // Latest stable - best price-performance
       FALLBACK: "meta-llama/llama-3.3-70b-instruct:free"
     },
     MAX_TOKENS: 1000,
