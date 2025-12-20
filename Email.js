@@ -8,9 +8,19 @@
 /**
  * Process Gmail inbox for candidate emails
  */
+/**
+ * Process Gmail inbox for candidate emails
+ * Uses 'ORACLE_PROCESSED' label to track state without marking as read
+ */
 function processInbox() {
   try {
-    const threads = GmailApp.search('is:unread -category:social', 0, 10);
+    // Ensure label exists
+    const labelName = 'ORACLE_PROCESSED';
+    let label = GmailApp.getUserLabelByName(labelName);
+    if (!label) label = GmailApp.createLabel(labelName);
+
+    // Search for unread emails that haven't been processed
+    const threads = GmailApp.search(`is:unread -label:${labelName} -category:social`, 0, 10);
     if (threads.length === 0) return;
 
     Log.info('INBOX', `Processing ${threads.length} unread emails`);
@@ -25,7 +35,9 @@ function processInbox() {
 
       const analysis = AI.analyzeIntent(body, subject, hasAttachments);
       if (!analysis) {
-        Log.warn('INBOX', 'AI analysis failed', { email, subject });
+        // Mark as processed even if analysis failed to avoid infinite loop
+        thread.addLabel(label);
+        Log.warn('INBOX', 'AI analysis failed - skipped', { email, subject });
         continue;
       }
 
@@ -39,7 +51,8 @@ function processInbox() {
         case 'ESCALATE': handleEmailEscalation(email, subject, body); break;
       }
 
-      thread.markRead();
+      // Mark as processed (adds label, keeps Unread status)
+      thread.addLabel(label);
     }
   } catch (e) {
     Log.error('INBOX', 'Failed to process inbox', { error: e.message });
