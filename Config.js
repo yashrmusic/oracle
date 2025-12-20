@@ -35,26 +35,43 @@ const CONFIG = {
   },
 
   // ═══════════════════ COLUMN MAPPINGS (1-Based) ═══════════════════
+  // ═══════════════════ COLUMN MAPPINGS (1-Based) ═══════════════════
   COLUMNS: {
-    TIMESTAMP: 1,
+    // User Sheet Headers (1-23)
+    STATUS: 1,
     UPDATED: 2,
-    STATUS: 3,
+    TIMESTAMP: 3,
     NAME: 4,
-    EMAIL: 5,
-    PHONE: 6,
-    LOG: 7,
-    ROLE: 8,
-    TEST_SENT: 9,
-    TEST_SUBMITTED: 10,
-    PORTFOLIO_URL: 11,
-    AI_SCORE: 12,
-    INTERVIEW_DATE: 13,
-    // v22.0 New Columns
-    DEPARTMENT: 14,
-    PORTFOLIO_SCORE: 15,
-    PORTFOLIO_FEEDBACK: 16,
-    CALENDAR_EVENT_ID: 17,
-    PORTAL_TOKEN: 18
+    PHONE: 5,
+    EMAIL: 6,
+    ROLE: 7,
+    DEGREE: 8,
+    START_DATE: 9,
+    TENURE: 10,
+    SALARY_EXP: 11,
+    SALARY_LAST: 12,
+    EXPERIENCE: 13,
+    PORTFOLIO_URL: 14,
+    CV_URL: 15,
+    CITY: 16,
+    HINDI: 17,
+    HEALTH: 18,
+    PREV_EXP: 19,
+    INTERVIEW_DATE: 20,
+    INTERVIEW_TIME: 21,
+    EMAIL_ALT: 22,
+    RELOCATION: 23,
+
+    // System Columns (Appended -> 24+)
+    LOG: 24,
+    TEST_SENT: 25,
+    TEST_SUBMITTED: 26,
+    AI_SCORE: 27,
+    PORTFOLIO_SCORE: 28,
+    PORTFOLIO_FEEDBACK: 29,
+    DEPARTMENT: 30,
+    CALENDAR_EVENT_ID: 31,
+    PORTAL_TOKEN: 32
   },
 
   // ═══════════════════ BUSINESS RULES ═══════════════════
