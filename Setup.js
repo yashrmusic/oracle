@@ -70,6 +70,37 @@ function INITIAL_PRODUCTION_SETUP() {
   }
 }
 
+/**
+ * 🧹 EMERGENCY CLEANUP
+ * Marks all unread emails as processed/read/labeled to stop loop
+ */
+function MARK_INBOX_READ_AND_PROCESSED() {
+  Logger.log('🧹 Starting Inbox Cleanup...');
+
+  const labelName = 'ORACLE_PROCESSED';
+  let label = GmailApp.getUserLabelByName(labelName);
+  if (!label) label = GmailApp.createLabel(labelName);
+
+  let processed = 0;
+
+  // Process in batches of 50
+  while (true) {
+    const threads = GmailApp.search('is:unread -category:social', 0, 50);
+    if (threads.length === 0) break;
+
+    Logger.log(`Processing batch of ${threads.length}...`);
+
+    // Add label and mark read
+    label.addToThreads(threads);
+    GmailApp.markThreadsRead(threads);
+
+    processed += threads.length;
+    Utilities.sleep(1000); // Prevent rate limiting
+  }
+
+  Logger.log(`✅ Cleanup Complete: Marked ${processed} emails as read & processed.`);
+}
+
 function initializeSheets() {
   const master = SpreadsheetApp.openById(CONFIG.SHEETS.MASTER_ID);
 
