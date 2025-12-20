@@ -132,8 +132,9 @@ function handleEmailFollowup(email, analysis) {
   const candidate = SheetUtils.findCandidateByEmail(email);
 
   if (!candidate) {
-    GmailApp.sendEmail(email, 'Re: Your Application Status',
-      `Hi there,\n\nWe couldn't find your application. Please provide your full name and role applied for.\n\nBest,\nTeam UrbanMistrii`);
+    Log.warn('EMAIL', 'Candidate not found for follow-up - SKIPPING auto-reply to prevent spam', { email: Sanitize.maskEmail(email) });
+    // GmailApp.sendEmail(email, 'Re: Your Application Status',
+    //   `Hi there,\n\nWe couldn't find your application. Please provide your full name and role applied for.\n\nBest,\nTeam UrbanMistrii`);
     return;
   }
 
