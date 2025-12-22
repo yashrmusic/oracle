@@ -30,7 +30,8 @@ const CONFIG = {
       FOLLOWUP: "DB_FollowUp",
       LOGS: "DB_Logs",
       TIMELINE: "DB_Timeline",
-      ANALYTICS: "DB_Analytics"
+      ANALYTICS: "DB_Analytics",
+      TEST_SUBMISSIONS: "DB_TestSubmissions"
     }
   },
 
@@ -114,9 +115,14 @@ const CONFIG = {
   // ═══════════════════ TEST LINKS BY ROLE ═══════════════════
   TEST_LINKS: {
     intern: "https://app.box.com/s/lvp6m9rcsgvkjixis6yt5422ajw2mr8t",
-    junior: "https://app.box.com/folder/309187038121",
+    junior: "https://app.box.com/folder/309187038121?s=v2g3zfmrbhok36zbsykca5hhqjfrahqf",
     senior: "https://app.box.com/s/mf3pbeethgznuha1oxzve2lhy79i209v"
   },
+
+  // ═══════════════════ FORMS & LINKS ═══════════════════
+  APPLICATION_FORM_URL: "https://docs.google.com/forms/d/e/1FAIpQLScucJWBWNZWMYKu9i06TlZZjeaiijWjjDuEVQyBxcDET66NCg/viewform",
+  PORTAL_URL: "https://script.google.com/macros/s/AKfycbyaZbGMBNM33g-fu3uFBWWXP_WsRdS7nuHpqzq8dsIfE-dGfMoZo2t0y2R5Aqeyaq1sVw/exec",
+  TEST_SUBMISSION_FORM_URL: "https://docs.google.com/forms/d/e/1FAIpQLSdLSjFWPaI3mpO23JprV6xQfBco5nSAAyxUFRv1eP5sf1xJ9g/viewform",
 
   // ═══════════════════ CONTACTS & EMAILS ═══════════════════
   TEAM: {
@@ -134,7 +140,7 @@ const CONFIG = {
   // ═══════════════════ AI SETTINGS ═══════════════════
   AI: {
     MODELS: {
-      PRIMARY: "gemini-2.5-flash",  // Latest stable - best price-performance
+      PRIMARY: "gemini-2.5-flash",  // Latest & best (GA June 2025)
       FALLBACK: "meta-llama/llama-3.3-70b-instruct:free"
     },
     MAX_TOKENS: 1000,
@@ -170,7 +176,7 @@ const CONFIG = {
       roles: ['Design Intern', 'Junior Designer', 'Senior Designer', 'Lead Designer'],
       testLinks: {
         intern: 'https://app.box.com/s/lvp6m9rcsgvkjixis6yt5422ajw2mr8t',
-        junior: 'https://app.box.com/folder/309187038121',
+        junior: 'https://app.box.com/folder/309187038121?s=v2g3zfmrbhok36zbsykca5hhqjfrahqf',
         senior: 'https://app.box.com/s/mf3pbeethgznuha1oxzve2lhy79i209v'
       },
       evaluators: ['hr@urbanmistrii.com'],
@@ -222,7 +228,7 @@ const SecureConfig = {
     // Store keys (REPLACE THESE WITH YOUR ACTUAL KEYS)
     // ⚠️ DELETE THESE AFTER RUNNING setupSecureConfig() ONCE!
     props.setProperties({
-      'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
+      'GEMINI_API_KEY': 'AIzaSyB2mgDEejLReXnGPw8G8W7TyNJWJZ4JSz4',
       'OPENROUTER_API_KEY': 'YOUR_OPENROUTER_API_KEY_HERE',  // Get from https://openrouter.ai/keys
       // Twilio WhatsApp credentials (replaces AiSensy)
       'TWILIO_ACCOUNT_SID': 'YOUR_TWILIO_ACCOUNT_SID',  // Get from https://console.twilio.com
@@ -300,24 +306,33 @@ const SecureConfig = {
 };
 
 /**
- * FORCE RESET - Run this to fix API key issues
- * Pass your Groq key as parameter to set up everything in one go
- * Usage: FORCE_RESET_API_KEYS("gsk_xxxxx...")
+ * 🚀 ONE-BUTTON SETUP - Run this to configure EVERYTHING
+ * Tests multiple Gemini models and picks the best working one
+ * 
+ * Usage: SETUP_ALL("your_gemini_key", "your_groq_key", "your_github_pat")
+ * Minimum: SETUP_ALL("your_gemini_key")
  */
-function FORCE_RESET_API_KEYS(groqKey, githubPat) {
+function SETUP_ALL(geminiKey, groqKey, githubPat) {
   Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
-  Logger.log('║         FORCE RESET API KEYS                                     ║');
+  Logger.log('║         🚀 ORACLE COMPLETE SETUP                                  ║');
   Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
+  Logger.log('');
+
+  if (!geminiKey) {
+    Logger.log('❌ Usage: SETUP_ALL("your_gemini_api_key")');
+    Logger.log('   Get key from: https://aistudio.google.com/app/apikey');
+    return false;
+  }
 
   const props = PropertiesService.getScriptProperties();
 
-  // Delete all existing properties
+  // Step 1: Clear old config
   props.deleteAllProperties();
-  Logger.log('🗑️ Deleted old properties');
+  Logger.log('🗑️ Cleared old configuration');
 
-  // Store new keys
+  // Step 2: Store API keys
   props.setProperties({
-    'GEMINI_API_KEY': 'AIzaSyAKYHZg6EJ3BkdVnkpQC5U38_1mGWqhSIg',
+    'GEMINI_API_KEY': geminiKey,
     'GROQ_API_KEY': groqKey || '',
     'GITHUB_PAT': githubPat || '',
     'TWILIO_ACCOUNT_SID': '',
@@ -325,20 +340,178 @@ function FORCE_RESET_API_KEYS(groqKey, githubPat) {
     'TWILIO_WHATSAPP_NUMBER': 'whatsapp:+14155238886',
     'CONFIG_INITIALIZED': 'true'
   });
-
-  Logger.log('✅ Gemini API key stored!');
-  if (groqKey) {
-    Logger.log('✅ Groq API key stored!');
-  } else {
-    Logger.log('⚠️ Groq not configured');
-  }
-  if (githubPat) {
-    Logger.log('✅ GitHub PAT stored!');
-  } else {
-    Logger.log('⚠️ GitHub PAT not configured');
-  }
+  Logger.log('✅ API keys stored securely');
   Logger.log('');
-  Logger.log('🧪 Now run: testAI()');
+
+  // Step 3: Test multiple Gemini models to find the best one
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+  Logger.log('🔍 TESTING GEMINI MODELS (finding best available)...');
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+
+  const geminiModels = [
+    // Latest 2.5 models (best first)
+    'gemini-2.5-flash',           // Latest & best flash (GA June 2025)
+    'gemini-2.5-pro',             // Latest & best pro (GA June 2025)
+    'gemini-2.5-flash-lite',      // Lightweight 2.5
+    // 2.0 models
+    'gemini-2.0-flash-exp',       // Experimental 2.0
+    'gemini-2.0-flash',           // Stable 2.0
+    // 1.5 fallbacks
+    'gemini-1.5-flash',           // Old stable flash
+    'gemini-1.5-pro'              // Old stable pro
+  ];
+
+  let workingModel = null;
+
+  for (const model of geminiModels) {
+    Logger.log(`   Testing: ${model}...`);
+    try {
+      const result = _testGeminiModel(geminiKey, model);
+      if (result.success) {
+        Logger.log(`   ✅ ${model} - WORKING!`);
+        workingModel = model;
+        break;
+      } else {
+        Logger.log(`   ❌ ${model} - ${result.error.substring(0, 50)}`);
+      }
+    } catch (e) {
+      Logger.log(`   ❌ ${model} - ${e.message.substring(0, 50)}`);
+    }
+  }
+
+  Logger.log('');
+
+  if (workingModel) {
+    // Store the working model
+    props.setProperty('GEMINI_MODEL', workingModel);
+    Logger.log(`🎉 Best Gemini Model: ${workingModel}`);
+    Logger.log('   (Stored in Script Properties as GEMINI_MODEL)');
+  } else {
+    Logger.log('⚠️ No Gemini models working - will rely on fallbacks');
+  }
+
+  Logger.log('');
+
+  // Step 4: Test fallback providers
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+  Logger.log('🔍 TESTING FALLBACK PROVIDERS...');
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+
+  let groqOk = false;
+  let githubOk = false;
+
+  // Test Groq
+  if (groqKey) {
+    try {
+      const response = UrlFetchApp.fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'post',
+        headers: { 'Authorization': `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+        payload: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: 'Say ok' }],
+          max_tokens: 10
+        }),
+        muteHttpExceptions: true
+      });
+      const json = JSON.parse(response.getContentText());
+      if (!json.error) {
+        Logger.log('   ✅ GROQ: Working');
+        groqOk = true;
+      } else {
+        Logger.log(`   ❌ GROQ: ${json.error.message || 'Failed'}`);
+      }
+    } catch (e) {
+      Logger.log(`   ❌ GROQ: ${e.message.substring(0, 50)}`);
+    }
+  } else {
+    Logger.log('   ⚪ GROQ: Not configured (optional)');
+  }
+
+  // Test GitHub Models
+  if (githubPat) {
+    try {
+      const response = UrlFetchApp.fetch('https://models.github.ai/inference/chat/completions', {
+        method: 'post',
+        headers: { 'Authorization': `Bearer ${githubPat}`, 'Content-Type': 'application/json' },
+        payload: JSON.stringify({
+          model: 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Say ok' }],
+          max_tokens: 10
+        }),
+        muteHttpExceptions: true
+      });
+      const json = JSON.parse(response.getContentText());
+      if (!json.error) {
+        Logger.log('   ✅ GITHUB MODELS: Working');
+        githubOk = true;
+      } else {
+        Logger.log(`   ❌ GITHUB: ${json.error.message || 'Failed'}`);
+      }
+    } catch (e) {
+      Logger.log(`   ❌ GITHUB: ${e.message.substring(0, 50)}`);
+    }
+  } else {
+    Logger.log('   ⚪ GITHUB MODELS: Not configured (optional)');
+  }
+
+  // Summary
+  Logger.log('');
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+  Logger.log('📋 SETUP COMPLETE - SUMMARY');
+  Logger.log('═══════════════════════════════════════════════════════════════════');
+  Logger.log(`   GEMINI:  ${workingModel ? '✅ ' + workingModel : '❌ Not working'}`);
+  Logger.log(`   GROQ:    ${groqOk ? '✅ Working' : groqKey ? '❌ Failed' : '⚪ Not configured'}`);
+  Logger.log(`   GITHUB:  ${githubOk ? '✅ Working' : githubPat ? '❌ Failed' : '⚪ Not configured'}`);
+  Logger.log('');
+
+  if (workingModel || groqOk || githubOk) {
+    Logger.log('🎉 AI SYSTEM: READY');
+    return true;
+  } else {
+    Logger.log('🚨 AI SYSTEM: NO PROVIDERS WORKING');
+    Logger.log('   Please check your API keys');
+    return false;
+  }
+}
+
+/**
+ * Helper: Test a specific Gemini model
+ */
+function _testGeminiModel(apiKey, modelName) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+  const payload = {
+    contents: [{ parts: [{ text: 'Say "working" in one word' }] }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 10 }
+  };
+
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const json = JSON.parse(response.getContentText());
+
+  if (json.error) {
+    return { success: false, error: json.error.message || JSON.stringify(json.error) };
+  }
+
+  if (json.candidates && json.candidates[0]?.content?.parts?.[0]?.text) {
+    return { success: true, response: json.candidates[0].content.parts[0].text };
+  }
+
+  return { success: false, error: 'Invalid response structure' };
+}
+
+/**
+ * FORCE RESET - Legacy function (use SETUP_ALL instead)
+ */
+function FORCE_RESET_API_KEYS(groqKey, githubPat) {
+  Logger.log('⚠️ Use SETUP_ALL() instead - it auto-tests and finds working models!');
+  Logger.log('');
+  SETUP_ALL('AIzaSyB2mgDEejLReXnGPw8G8W7TyNJWJZ4JSz4', groqKey, githubPat);
 }
 
 /**

@@ -46,6 +46,7 @@ function processInbox() {
       switch (analysis.intent) {
         case 'TEST_SUBMISSION': handleEmailTestSubmission(email, analysis, msg); break;
         case 'NEW_APPLICATION': handleEmailApplication(email, analysis, msg); break;
+        case 'FORM_RESPONSE': handleFormResponse(email, body, msg); break;
         case 'FOLLOWUP': handleEmailFollowup(email, analysis); break;
         case 'QUESTION': handleEmailQuestion(email, analysis, body); break;
         case 'ESCALATE': handleEmailEscalation(email, subject, body); break;
@@ -64,19 +65,150 @@ function handleEmailTestSubmission(email, analysis, message) {
   const candidate = SheetUtils.findCandidateByEmail(email);
 
   if (!candidate) {
-    message.reply(`Hi ${analysis.name || 'there'},\n\nWe couldn't find your application. Please apply first.\n\nBest,\nTeam UrbanMistrii`);
+    const notFoundHtml = EmailTemplates.wrap(`
+      <h3>Application Not Found</h3>
+      <p>Hello ${analysis.name || 'there'},</p>
+      <p>We couldn't find your application in our system.</p>
+      ${EmailTemplates.warningBox('Please ensure you have applied through our official channels before submitting your test.')}
+      <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+    `);
+    message.reply('', { htmlBody: notFoundHtml });
     return;
   }
 
   SheetUtils.updateCell(candidate.row, CONFIG.COLUMNS.STATUS, CONFIG.RULES.STATUSES.TEST_SUBMITTED);
 
   const attachments = message.getAttachments();
-  GmailApp.sendEmail(CONFIG.TEAM.ADMIN_EMAIL, `📝 Test Submission: ${analysis.name}`,
+  GmailApp.sendEmail(CONFIG.TEAM.ADMIN_EMAIL, `Test Submission: ${analysis.name}`,
     `${analysis.name} has submitted their test.\nEmail: ${email}\nAttachments: ${attachments.length}`,
-    { attachments: attachments, name: 'Oracle v21.0' });
+    { attachments: attachments, name: 'Urbanmistrii Oracle' });
 
-  message.reply(`Hi ${analysis.name},\n\nThank you for submitting your test! 🎉\n\nOur team will review it and get back to you within 2-3 days.\n\nBest,\nTeam UrbanMistrii`);
+  const submissionHtml = EmailTemplates.wrap(`
+    <h3>Test Received</h3>
+    <p>Hello <strong>${analysis.name}</strong>,</p>
+    <p>Thank you for submitting your test! We have received your submission and our team will begin the review process.</p>
+    <div style="background-color: #f9f9f9; padding: 20px; border-left: 4px solid #e74c3c; margin: 25px 0;">
+      <p style="margin: 0 0 10px 0;"><strong>What happens next?</strong></p>
+      <ul style="margin: 0; padding-left: 20px;">
+        <li>Our design team will review your submission</li>
+        <li>You will receive feedback within 2-3 business days</li>
+        <li>We will contact you for the next steps</li>
+      </ul>
+    </div>
+    <p>We appreciate your effort and look forward to reviewing your work!</p>
+    <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+  `);
+  message.reply('', { htmlBody: submissionHtml });
   CandidateTimeline.add(email, 'TEST_SUBMISSION_EMAIL_PROCESSED');
+}
+
+/**
+ * Handle structured form-like responses from candidates
+ * When candidates reply with their details in Q&A format, parse and save to sheet
+ */
+function handleFormResponse(email, body, message) {
+  Log.info('EMAIL', 'Processing form response', { email: Sanitize.maskEmail(email) });
+
+  // Extract structured data from email
+  const formData = AI.extractFormResponse(body, email);
+
+  if (!formData || !formData.name) {
+    Log.error('EMAIL', 'Failed to extract form data', { email: Sanitize.maskEmail(email) });
+    // Escalate to admin
+    Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `Form Response Parse Failed: ${email}`,
+      `Could not parse candidate response. Manual review needed.\n\nEmail:\n${body.substring(0, 1500)}`);
+    return;
+  }
+
+  Log.info('EMAIL', 'Form data extracted', { name: formData.name, role: formData.role });
+
+  // Check if candidate already exists
+  const existing = SheetUtils.findCandidateByEmail(email);
+  const sheet = ConfigHelpers.getSheet(CONFIG.SHEETS.TABS.CANDIDATES);
+
+  if (existing) {
+    // Update existing candidate row
+    Log.info('EMAIL', 'Updating existing candidate', { row: existing.row });
+
+    // Update fields that were provided
+    if (formData.name) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.NAME, formData.name);
+    if (formData.phone) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.PHONE, formData.phone);
+    if (formData.role) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.ROLE, formData.role);
+    if (formData.degree) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.DEGREE, formData.degree);
+    if (formData.startDate) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.START_DATE, formData.startDate);
+    if (formData.tenure) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.TENURE, formData.tenure);
+    if (formData.salaryExpected) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.SALARY_EXP, formData.salaryExpected);
+    if (formData.salaryLast) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.SALARY_LAST, formData.salaryLast);
+    if (formData.experience) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.EXPERIENCE, formData.experience);
+    if (formData.portfolioUrl) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.PORTFOLIO_URL, formData.portfolioUrl);
+    if (formData.cvUrl) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.CV_URL, formData.cvUrl);
+    if (formData.city) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.CITY, formData.city);
+    if (formData.hindiProficient) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.HINDI, formData.hindiProficient);
+    if (formData.healthNotes) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.HEALTH, formData.healthNotes);
+    if (formData.previousApplication) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.PREV_EXP, formData.previousApplication);
+    if (formData.testAvailability) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.INTERVIEW_DATE, formData.testAvailability);
+    if (formData.willingToRelocate) SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.RELOCATION, formData.willingToRelocate);
+
+    SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.UPDATED, new Date());
+    SheetUtils.updateCell(existing.row, CONFIG.COLUMNS.LOG, '📝 Form response updated via email');
+
+  } else {
+    // Create new candidate row
+    Log.info('EMAIL', 'Creating new candidate from form response');
+
+    const department = ConfigHelpers.getDepartment(formData.role || '');
+
+    sheet.appendRow([
+      CONFIG.RULES.STATUSES.NEW,           // STATUS
+      new Date(),                           // UPDATED
+      new Date(),                           // TIMESTAMP
+      formData.name,                        // NAME
+      formData.phone || '',                 // PHONE
+      formData.email || email,              // EMAIL
+      formData.role || '',                  // ROLE
+      formData.degree || '',                // DEGREE
+      formData.startDate || '',             // START_DATE
+      formData.tenure || '',                // TENURE
+      formData.salaryExpected || '',        // SALARY_EXP
+      formData.salaryLast || '',            // SALARY_LAST
+      formData.experience || '',            // EXPERIENCE
+      formData.portfolioUrl || '',          // PORTFOLIO_URL
+      formData.cvUrl || '',                 // CV_URL
+      formData.city || '',                  // CITY
+      formData.hindiProficient || '',       // HINDI
+      formData.healthNotes || '',           // HEALTH
+      formData.previousApplication || '',   // PREV_EXP
+      formData.testAvailability || '',      // INTERVIEW_DATE (test availability)
+      '',                                   // INTERVIEW_TIME
+      '',                                   // EMAIL_ALT
+      formData.willingToRelocate || '',     // RELOCATION
+      'From email form response',        // LOG
+      '', '', '', '', department, '', ''    // System columns
+    ]);
+  }
+
+  // Send confirmation email
+  const confirmHtml = EmailTemplates.wrap(`
+    <h3>Details Received!</h3>
+    <p>Hello <strong>${formData.name}</strong>,</p>
+    <p>Thank you for providing your details. We have successfully recorded your information in our system.</p>
+    <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #4caf50; margin: 25px 0;">
+      <p style="margin: 0;"><strong>What happens next?</strong></p>
+      <p style="margin: 10px 0 0 0;">Our team will review your profile and send you the design test shortly. Please keep an eye on your inbox.</p>
+    </div>
+    <p>If you have any questions, feel free to reply to this email.</p>
+    <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+  `);
+
+  GmailApp.sendEmail(email, 'Details Received - Urbanmistrii',
+    `Hi ${formData.name}, Thank you for your details. We'll send you the design test shortly.`,
+    { htmlBody: confirmHtml, name: 'Urbanmistrii Hiring' });
+
+  // Notify admin
+  Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `Form Response: ${formData.name}`,
+    `Candidate responded with details via email.\n\nName: ${formData.name}\nRole: ${formData.role}\nEmail: ${email}\nPhone: ${formData.phone}\nCity: ${formData.city}\nTest Availability: ${formData.testAvailability}\n\nReview at: ${getSheetUrl()}`);
+
+  CandidateTimeline.add(email, 'FORM_RESPONSE_PROCESSED', { name: formData.name });
 }
 
 function handleEmailApplication(email, analysis, message) {
@@ -130,14 +262,38 @@ function handleEmailApplication(email, analysis, message) {
   sheet.appendRow([
     CONFIG.RULES.STATUSES.NEW, new Date(), new Date(),
     candidateInfo.name || analysis.name, candidateInfo.email || email,
-    candidateInfo.phone, '📧 From email', candidateInfo.role || analysis.role,
+    candidateInfo.phone, 'From email', candidateInfo.role || analysis.role,
     '', '', candidateInfo.portfolioLinks ? candidateInfo.portfolioLinks.join(', ') : '', '', '',
     department, '', '', '', '' // v22.0: New columns
   ]);
 
   Log.success('EMAIL', 'New candidate added', { name: candidateInfo.name, department });
-  message.reply(`Hi ${candidateInfo.name || 'there'},\n\nThank you for applying! 🎉\n\nWe'll review and get back within 1-2 days.\n\nBest,\nTeam UrbanMistrii`);
-  Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `📥 New Application: ${candidateInfo.name}`, `New candidate from email (${department} dept).\n\nReview at: ${getSheetUrl()}`);
+
+  // Send branded HTML email with form link
+  const applicationHtml = EmailTemplates.wrap(`
+    <h3>Application Received!</h3>
+    <p>Hello <strong>${candidateInfo.name || 'there'}</strong>,</p>
+    <p>Thank you for your interest in joining Urbanmistrii! We have received your application.</p>
+    <p>To ensure we have all the necessary details, please complete our official application form:</p>
+    ${EmailTemplates.button('FILL APPLICATION FORM', CONFIG.APPLICATION_FORM_URL)}
+    <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #e74c3c; margin: 25px 0;">
+      <p style="margin: 0 0 10px 0;"><strong>What to include:</strong></p>
+      <ul style="margin: 0; padding-left: 20px;">
+        <li>Your portfolio/work samples</li>
+        <li>Contact details</li>
+        <li>Preferred interview availability</li>
+      </ul>
+    </div>
+    <p>Once you've submitted the form, our team will review your application and get back to you within 1-2 business days.</p>
+    <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+  `);
+
+  GmailApp.sendEmail(email, 'Complete Your Application - Urbanmistrii',
+    `Hi ${candidateInfo.name || 'there'}, Thank you for applying! Please complete our application form: ${CONFIG.APPLICATION_FORM_URL}`,
+    { htmlBody: applicationHtml, name: 'Urbanmistrii Hiring' });
+
+  Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `New Application: ${candidateInfo.name}`,
+    `New candidate from email (${department} dept).\\n\\nEmail: ${email}\\nName: ${candidateInfo.name}\\n\\nForm link sent to candidate.\\n\\nReview at: ${getSheetUrl()}`);
 }
 
 function handleEmailFollowup(email, analysis) {
@@ -154,8 +310,17 @@ function handleEmailFollowup(email, analysis) {
   const status = candidate.data[CONFIG.COLUMNS.STATUS - 1];
   const name = candidate.data[CONFIG.COLUMNS.NAME - 1];
 
-  GmailApp.sendEmail(email, 'Your Application Status',
-    `Hi ${name},\n\nYour current status is: ${status}\n\nWe'll update you soon!\n\nBest,\nTeam UrbanMistrii`);
+  const statusHtml = EmailTemplates.wrap(`
+    <h3>Application Status Update</h3>
+    <p>Hello <strong>${name}</strong>,</p>
+    <p>Thank you for checking in! Here's the current status of your application:</p>
+    <div style="background-color: #f9f9f9; padding: 20px; border-left: 4px solid #e74c3c; margin: 25px 0;">
+      <p style="margin: 0;"><strong>Current Status:</strong> ${status}</p>
+    </div>
+    <p>We'll keep you updated on any changes. If you have any questions, feel free to reply to this email.</p>
+    <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+  `);
+  GmailApp.sendEmail(email, 'Your Application Status', `Hi ${name}, Your current status is: ${status}`, { htmlBody: statusHtml, name: 'Urbanmistrii' });
   CandidateTimeline.add(email, 'FOLLOWUP_EMAIL_SENT');
 
   // v22.1: Log to DB_FollowUp
@@ -181,10 +346,17 @@ function handleEmailQuestion(email, analysis, body) {
   const reply = AI.suggestReply(body.substring(0, 500), context);
 
   if (reply) {
-    GmailApp.sendEmail(email, 'Re: Your Question', reply);
+    const replyHtml = EmailTemplates.wrap(`
+      <h3>Your Question</h3>
+      <p>Hello <strong>${context.name}</strong>,</p>
+      <p>${reply.replace(/\n/g, '<br>')}</p>
+      <p>If you have any more questions, feel free to ask!</p>
+      <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+    `);
+    GmailApp.sendEmail(email, 'Re: Your Question', reply, { htmlBody: replyHtml, name: 'Urbanmistrii' });
     Log.success('EMAIL', 'AI-generated reply sent');
   } else {
-    Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `❓ Question from ${context.name}`,
+    Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `Question from ${context.name}`,
       `Candidate question needs manual response:\n\nFrom: ${email}\nQuestion:\n${body.substring(0, 1000)}`);
   }
 }
@@ -193,8 +365,17 @@ function handleEmailEscalation(email, subject, body) {
   Log.warn('EMAIL', 'Escalation detected', { email: Sanitize.maskEmail(email) });
   Notify.email(CONFIG.TEAM.ADMIN_EMAIL, `🚨 URGENT: Escalated Email from ${email}`,
     `Urgent email needs attention.\n\nFrom: ${email}\nSubject: ${subject}\n\nBody:\n${body}`);
-  GmailApp.sendEmail(email, 'Re: ' + subject,
-    `Hello,\n\nWe've received your message and flagged it as urgent. Our team will respond soon.\n\nBest,\nTeam UrbanMistrii`);
+  const escalationHtml = EmailTemplates.wrap(`
+    <h3>Message Received</h3>
+    <p>Hello,</p>
+    <p>We've received your message and it has been flagged as a priority. A member of our HR team will review and respond to you personally.</p>
+    <div style="background-color: #fff3cd; padding: 15px; border-left: 4px solid #f39c12; margin: 20px 0;">
+      <strong>Expected Response Time:</strong> 1-2 business days
+    </div>
+    <p>Thank you for your patience.</p>
+    <p>Best regards,<br><strong>Hiring Team, Urbanmistrii</strong></p>
+  `);
+  GmailApp.sendEmail(email, 'Re: ' + subject, 'We have received your message and will respond soon.', { htmlBody: escalationHtml, name: 'Urbanmistrii' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

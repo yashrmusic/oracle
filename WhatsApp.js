@@ -143,14 +143,14 @@ const WhatsApp = {
    * Send welcome message to new candidate
    */
   sendWelcome(phone, name) {
-    const message = `Hi ${name}! 👋
+    const message = `Hi ${name}!
 
 Welcome to UrbanMistrii! We're excited to have you as a candidate.
 
 Your application has been received and is being reviewed. We'll get back to you within 1-2 business days with the next steps.
 
 Best regards,
-Team UrbanMistrii 🎨`;
+Team UrbanMistrii`;
 
     return this._send(phone, message);
   },
@@ -162,20 +162,20 @@ Team UrbanMistrii 🎨`;
     const link = ConfigHelpers.getTestLink(role, department);
     const timeLimit = ConfigHelpers.getTimeLimit(role, department);
 
-    const message = `Hi ${name}! 🎉
+    const message = `Hi ${name}!
 
 Great news! You've been selected to take our ${role} assessment.
 
-📋 *Test Details:*
+*Test Details:*
 • Role: ${role}
 • Time Limit: ${timeLimit} hours
 • Link: ${link}
 
-⏰ Please complete the test within ${timeLimit} hours of receiving this message.
+Please complete the test within ${timeLimit} hours of receiving this message.
 
-📤 Once done, reply to this message or email us at hr@urbanmistrii.com with your submission.
+Once done, reply to this message or email us at hr@urbanmistrii.com with your submission.
 
-Good luck! 🍀
+Good luck!
 Team UrbanMistrii`;
 
     return this._send(phone, message);
@@ -185,7 +185,7 @@ Team UrbanMistrii`;
    * Send interview schedule
    */
   sendInterviewSchedule(phone, name, role, dateString) {
-    const message = `Hi ${name}! 🎊
+    const message = `Hi ${name}!
 
 Congratulations! You've cleared the assessment for ${role}.
 
@@ -196,7 +196,7 @@ Congratulations! You've cleared the assessment for ${role}.
 
 Please confirm your availability by replying to this message.
 
-See you soon! 🙌
+See you soon!
 Team UrbanMistrii`;
 
     return this._send(phone, message);
@@ -206,7 +206,7 @@ Team UrbanMistrii`;
    * Send reminder message
    */
   sendReminder(phone, name, messageStr) {
-    const message = `Hi ${name}! 👋
+    const message = `Hi ${name}!
 
 Just a friendly reminder: ${messageStr}
 

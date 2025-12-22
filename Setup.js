@@ -30,6 +30,10 @@ function INITIAL_PRODUCTION_SETUP() {
     ScriptApp.newTrigger('universalAutomationEngine').forSpreadsheet(masterSs).onEdit().create();
     Logger.log('   ✅ Status change trigger created');
 
+    // 🆕 Form submit trigger for auto-confirmations
+    ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(masterSs).onFormSubmit().create();
+    Logger.log('   ✅ Form submit trigger created (auto-confirmations)');
+
     ScriptApp.newTrigger('runOracleBackgroundCycle').timeBased().everyMinutes(15).create();
     Logger.log('   ✅ Background cycle trigger created (15 min)');
 
@@ -123,6 +127,83 @@ function initializeSheets() {
       }
     }
   });
+
+  // Set up STATUS dropdown on candidates sheet
+  setupStatusDropdown();
+}
+
+/**
+ * Set up STATUS column dropdown validation on both master and public sheets
+ * Run this to ensure consistent status values across all views
+ */
+function setupStatusDropdown() {
+  Logger.log('╔═══════════════════════════════════════════════════════════════════╗');
+  Logger.log('║         SETTING UP STATUS DROPDOWN                               ║');
+  Logger.log('╚═══════════════════════════════════════════════════════════════════╝');
+
+  const statusValues = Object.values(CONFIG.RULES.STATUSES);
+  Logger.log(`Status options: ${statusValues.join(', ')}`);
+
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(statusValues, true)
+    .setAllowInvalid(false)
+    .setHelpText('Select a status from the dropdown')
+    .build();
+
+  // 1. Master Sheet (DB_Candidates)
+  try {
+    const masterSheet = ConfigHelpers.getSheet(CONFIG.SHEETS.TABS.CANDIDATES);
+    const lastRow = Math.max(masterSheet.getLastRow(), 100);
+    const statusRange = masterSheet.getRange(2, CONFIG.COLUMNS.STATUS, lastRow, 1);
+    statusRange.setDataValidation(rule);
+    Logger.log('✅ Master sheet STATUS dropdown set');
+  } catch (e) {
+    Logger.log('❌ Master sheet error: ' + e.message);
+  }
+
+  // 2. Public Sheet (Team View) - sync first if empty
+  try {
+    const publicSs = SpreadsheetApp.openById(CONFIG.SHEETS.PUBLIC_ID);
+    let publicSheet = publicSs.getSheetByName('Team View');
+
+    // Create sheet if doesn't exist
+    if (!publicSheet) {
+      publicSheet = publicSs.insertSheet('Team View');
+      Logger.log('📄 Created Team View sheet');
+    }
+
+    const colCount = publicSheet.getLastColumn();
+
+    // If empty, run sync first
+    if (colCount < 1) {
+      Logger.log('⚠️ Public sheet empty - running sync first...');
+      syncToPublicView();
+      SpreadsheetApp.flush();
+    }
+
+    const lastRow = Math.max(publicSheet.getLastRow(), 100);
+    const lastCol = publicSheet.getLastColumn();
+
+    if (lastCol > 0) {
+      const headers = publicSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      const statusCol = headers.findIndex(h => String(h).toLowerCase() === 'status') + 1;
+
+      if (statusCol > 0) {
+        const statusRange = publicSheet.getRange(2, statusCol, lastRow, 1);
+        statusRange.setDataValidation(rule);
+        Logger.log('✅ Public sheet STATUS dropdown set (column ' + statusCol + ')');
+      } else {
+        Logger.log('⚠️ STATUS column not found in public sheet headers: ' + headers.join(', '));
+      }
+    } else {
+      Logger.log('⚠️ Public sheet still empty after sync');
+    }
+  } catch (e) {
+    Logger.log('❌ Public sheet error: ' + e.message);
+  }
+
+  Logger.log('');
+  Logger.log('Done! Status dropdown is now available on both sheets.');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

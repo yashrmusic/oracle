@@ -49,7 +49,11 @@ const AI = {
     const key = SecureConfig.getOptional('GEMINI_API_KEY');
     if (!key) throw new Error('Gemini API key not configured');
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.AI.MODELS.PRIMARY}:generateContent?key=${key}`;
+    // Use auto-detected working model, or fall back to config
+    const props = PropertiesService.getScriptProperties();
+    const model = props.getProperty('GEMINI_MODEL') || CONFIG.AI.MODELS.PRIMARY;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
 
     const payload = {
       contents: [{
@@ -238,12 +242,17 @@ const AI = {
     Has Attachments: ${hasAttachments}
 
     Categories:
-    - TEST_SUBMISSION (Uses words like 'submitted', 'test', 'task', attached files)
-    - NEW_APPLICATION (Applying for a job, sharing portfolio/resume)
+    - TEST_SUBMISSION (Uses words like 'submitted', 'test', 'task', attached files with design work)
+    - NEW_APPLICATION (First time applying for a job, sharing portfolio/resume WITHOUT answering specific questions)
+    - FORM_RESPONSE (Candidate replying with structured answers like: name, email, phone, city, salary, experience, availability dates - filling out application details)
     - FOLLOWUP (Asking about status, or previous conversation)
-    - QUESTION (Asking specific question about process/company)
-    - ESCALATE (Angry, urgent, complaint)
+    - QUESTION (Asking specific question about process/company that can be auto-answered)
+    - ESCALATE (Reschedule requests, date changes, salary negotiations, angry, urgent, complaints, anything needing human attention)
     - SPAM (Marketing, irrelevant)
+
+    IMPORTANT: 
+    - If email contains structured Q&A pairs like "Current City: X", "Name: Y", "Salary: Z" - it's FORM_RESPONSE
+    - Any request to reschedule, change dates, or modify interview/test timing should be ESCALATE.
 
     Return ONLY JSON:
     {
@@ -291,6 +300,55 @@ const AI = {
     }
   },
 
+  /**
+   * Extract structured form response data from candidate email
+   * Parses emails where candidates reply with their details in Q&A format
+   */
+  extractFormResponse(body, senderEmail) {
+    const prompt = `
+    Extract ALL candidate details from this structured email response.
+    The candidate is replying with their information.
+    
+    Email body:
+    ${body}
+    
+    Extract and return JSON with these fields (use null if not found):
+    {
+      "name": "Full Name",
+      "email": "${senderEmail}",
+      "phone": "Phone Number",
+      "city": "Current City",
+      "role": "Desired Position/Role",
+      "degree": "Degree/Education",
+      "startDate": "Earliest Start Date",
+      "tenure": "Expected Tenure",
+      "salaryExpected": "Salary Expectations",
+      "salaryLast": "Last Drawn Salary",
+      "experience": "Work Experience description",
+      "hindiProficient": "Yes/No",
+      "healthNotes": "Health Considerations",
+      "previousApplication": "Yes/No if applied before",
+      "testAvailability": "Preferred test date/time",
+      "willingToRelocate": "Yes/No",
+      "portfolioUrl": "Portfolio link if any",
+      "cvUrl": "CV/Resume link if any"
+    }
+    
+    IMPORTANT: Extract exact values from the email. Don't make up data.
+    `;
+
+    try {
+      const res = this.call(prompt, "You extract structured data from emails. Return valid JSON only.");
+      const parsed = JSON.parse(res.replace(/```json/g, '').replace(/```/g, '').trim());
+      // Ensure email is set
+      parsed.email = parsed.email || senderEmail;
+      return parsed;
+    } catch (e) {
+      Log.error('AI', 'Failed to extract form response', { error: e.message });
+      return null;
+    }
+  },
+
   generateRejection(name, role, reason) {
     const prompt = `
     Write a gentle, professional rejection email for ${name} applied for ${role}.
@@ -304,17 +362,39 @@ const AI = {
 
   suggestReply(questionText, context) {
     const prompt = `
-    Draft a helpful reply to this candidate question.
-    Candidate: ${context.name}, Role: ${context.role}, Status: ${context.status}.
-    Question: "${questionText}"
+    You are a hiring assistant for Urbanmistrii, a design studio.
+    Write a SHORT, HELPFUL reply to this candidate's email.
     
-    Rules: 
-    - Be concise and friendly.
-    - If status is NEW, say 1-2 days for review.
-    - If TEST_SENT, encourage submission.
-    - If TEST_SUBMITTED, say 2-3 days for review.
+    Candidate: ${context.name}
+    Role Applied: ${context.role}
+    Current Status: ${context.status}
+    
+    Their message: "${questionText}"
+    
+    CRITICAL RULES:
+    - Write the ACTUAL reply text, ready to send.
+    - Be warm, professional, and specific.
+    - Keep it 2-3 sentences maximum.
+    - NEVER use placeholders like [date], [time], [your name], etc.
+    - NEVER ask them to fill in blanks.
+    - If they ask about dates/times and you don't know, say "Our team will get back to you shortly with specific timing."
+    - If status is NEW, say their application is under review (1-2 days).
+    - If status is TEST_SENT, encourage them to complete and submit.
+    - If status is TEST_SUBMITTED or UNDER_REVIEW, say their work is being evaluated (2-3 days).
+    - Sign off as "Hiring Team, Urbanmistrii"
+    
+    Reply:
     `;
-    return this.call(prompt);
+
+    const reply = this.call(prompt);
+
+    // Safety check - reject if response contains obvious placeholders
+    if (reply && (reply.includes('[') || reply.includes('proposed date'))) {
+      Log.warn('AI', 'Rejected AI reply with placeholders', { reply: reply.substring(0, 100) });
+      return null; // This will trigger escalation to human
+    }
+
+    return reply;
   },
 
   /**
@@ -492,7 +572,7 @@ function testAI() {
 
   // Test Gemini
   Logger.log('');
-  Logger.log('🔷 Testing GEMINI (gemini-2.5-flash)...');
+  Logger.log('🔷 Testing GEMINI (gemini-2.0-flash)...');
   try {
     const response = AI._callGemini('Say "working" in one word', 'Respond briefly.');
     if (response) {
